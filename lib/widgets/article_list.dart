@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data/models/article.dart';
 import '../core/theme/app_colors.dart';
+import '../presentation/pages/article_detail_page.dart';
 
 /// 文章列表组件
 class ArticleList extends StatefulWidget {
@@ -21,7 +23,30 @@ class ArticleList extends StatefulWidget {
 class _ArticleListState extends State<ArticleList> {
   bool _isNewestFirst = true;
   bool _isCardView = false; // 视图模式: false=列表视图, true=卡片视图
+  final Set<String> _visitedArticleIds = <String>{}; // 记录已访问的文章ID
   // int _currentPage = 1; // (已移除分页功能)
+
+  static const String _isCardViewKey = 'isCardView';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadViewMode();
+  }
+
+  /// 从 SharedPreferences 加载视图模式
+  Future<void> _loadViewMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isCardView = prefs.getBool(_isCardViewKey) ?? false;
+    });
+  }
+
+  /// 保存视图模式到 SharedPreferences
+  Future<void> _saveViewMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_isCardViewKey, value);
+  }
 
   List<Article> get _sortedArticles {
     final sorted = List<Article>.from(widget.articles);
@@ -56,6 +81,7 @@ class _ArticleListState extends State<ArticleList> {
     setState(() {
       _isCardView = !_isCardView;
     });
+    _saveViewMode(_isCardView);
   }
 
   // void _goToPage(int page) {
@@ -139,6 +165,12 @@ class _ArticleListState extends State<ArticleList> {
               return _ArticleCard(
                 article: article,
                 isTall: isTall,
+                isVisited: _visitedArticleIds.contains(article.id),
+                onVisit: () {
+                  setState(() {
+                    _visitedArticleIds.add(article.id);
+                  });
+                },
               );
             },
           ),
@@ -150,7 +182,15 @@ class _ArticleListState extends State<ArticleList> {
             itemCount: displayArticles.length,
             itemBuilder: (context, index) {
               final article = displayArticles[index];
-              return _ArticleListItem(article: article);
+              return _ArticleListItem(
+                article: article,
+                isVisited: _visitedArticleIds.contains(article.id),
+                onVisit: () {
+                  setState(() {
+                    _visitedArticleIds.add(article.id);
+                  });
+                },
+              );
             },
           ),
         ],
@@ -300,44 +340,100 @@ class _PageButton extends StatelessWidget {
 /// 文章列表项组件
 class _ArticleListItem extends StatelessWidget {
   final Article article;
+  final bool isVisited;
+  final VoidCallback onVisit;
 
-  const _ArticleListItem({required this.article});
+  const _ArticleListItem({
+    required this.article,
+    required this.isVisited,
+    required this.onVisit,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 日期
-          SizedBox(
-            width: 100,
-            child: Text(
-              article.formattedDate,
-              style: TextStyle(
-                fontSize: 14,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+    return Hero(
+      tag: 'article_${article.id}',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            onVisit();
+            Navigator.push(
+              context,
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) =>
+                    ArticleDetailPage(article: article),
+                transitionsBuilder:
+                    (context, animation, secondaryAnimation, child) {
+                  const begin = Offset(0.0, 0.05);
+                  const end = Offset.zero;
+                  const curve = Curves.easeOut;
+
+                  var tween = Tween(begin: begin, end: end).chain(
+                    CurveTween(curve: curve),
+                  );
+
+                  var fadeAnimation = Tween<double>(
+                    begin: 0.0,
+                    end: 1.0,
+                  ).animate(CurvedAnimation(
+                    parent: animation,
+                    curve: curve,
+                  ));
+
+                  return FadeTransition(
+                    opacity: fadeAnimation,
+                    child: SlideTransition(
+                      position: animation.drive(tween),
+                      child: child,
+                    ),
+                  );
+                },
+                transitionDuration: const Duration(milliseconds: 300),
               ),
+            );
+          },
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 日期
+                SizedBox(
+                  width: 100,
+                  child: Text(
+                    article.formattedShortDate,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // 文章标题（带下划线）
+                Expanded(
+                  child: Text(
+                    article.title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: isVisited
+                          ? theme.colorScheme.onSurface.withValues(alpha: 0.5)
+                          : theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                      decoration: TextDecoration.underline,
+                      decorationColor:
+                          theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 8),
-          // 文章标题（带下划线）
-          Expanded(
-            child: Text(
-              article.title,
-              style: TextStyle(
-                fontSize: 14,
-                decoration: TextDecoration.underline,
-                decorationColor: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-              ),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -433,10 +529,14 @@ class _SortToggleButton extends StatelessWidget {
 class _ArticleCard extends StatelessWidget {
   final Article article;
   final bool isTall;
+  final bool isVisited;
+  final VoidCallback onVisit;
 
   const _ArticleCard({
     required this.article,
     required this.isTall,
+    required this.isVisited,
+    required this.onVisit,
   });
 
   @override
@@ -448,52 +548,100 @@ class _ArticleCard extends StatelessWidget {
         ? _getLongExcerpt(article.content ?? '')
         : _getShortExcerpt(article.content ?? '');
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border.all(
-          color: theme.colorScheme.onSurface.withValues(alpha: 0.1),
+    return Hero(
+      tag: 'article_${article.id}',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            onVisit();
+            Navigator.push(
+              context,
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) =>
+                    ArticleDetailPage(article: article),
+                transitionsBuilder:
+                    (context, animation, secondaryAnimation, child) {
+                  const begin = Offset(0.0, 0.05);
+                  const end = Offset.zero;
+                  const curve = Curves.easeOut;
+
+                  var tween = Tween(begin: begin, end: end).chain(
+                    CurveTween(curve: curve),
+                  );
+
+                  var fadeAnimation = Tween<double>(
+                    begin: 0.0,
+                    end: 1.0,
+                  ).animate(CurvedAnimation(
+                    parent: animation,
+                    curve: curve,
+                  ));
+
+                  return FadeTransition(
+                    opacity: fadeAnimation,
+                    child: SlideTransition(
+                      position: animation.drive(tween),
+                      child: child,
+                    ),
+                  );
+                },
+                transitionDuration: const Duration(milliseconds: 300),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              border: Border.all(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.1),
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 标题
+                Text(
+                  article.title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: isVisited
+                        ? theme.colorScheme.onSurface.withValues(alpha: 0.5)
+                        : theme.colorScheme.onSurface,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                // 日期
+                Text(
+                  article.formattedShortDate,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // 内容摘要
+                Text(
+                  excerpt,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                    height: 1.5,
+                  ),
+                  maxLines: isTall ? 4 : 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
         ),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 标题
-          Text(
-            article.title,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.onSurface,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 8),
-          // 日期
-          Text(
-            article.formattedDate,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: 8),
-          // 内容摘要
-          Text(
-            excerpt,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
-              height: 1.5,
-            ),
-            maxLines: isTall ? 4 : 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
       ),
     );
   }

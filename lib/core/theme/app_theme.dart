@@ -13,6 +13,9 @@ class AppTheme {
       brightness: Brightness.light,
       useMaterial3: true,
 
+      // 全局字体
+      fontFamily: 'LXGWWenKai',
+
       // 整体背景色
       scaffoldBackgroundColor: AppColors.lightBackground,
 
@@ -82,6 +85,9 @@ class AppTheme {
     return ThemeData(
       brightness: Brightness.dark,
       useMaterial3: true,
+
+      // 全局字体
+      fontFamily: 'LXGWWenKai',
 
       // 整体背景色
       scaffoldBackgroundColor: AppColors.darkBackground,

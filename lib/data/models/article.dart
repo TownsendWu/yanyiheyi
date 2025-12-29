@@ -6,16 +6,31 @@ class Article {
   final String title;
   final DateTime date;
   final String? content;
+  final String? coverImage; // 封面图片 URL
+  final List<String> tags; // 标签列表
 
   Article({
     required this.id,
     required this.title,
     required this.date,
     this.content,
-  });
+    this.coverImage,
+    List<String>? tags,
+  }) : tags = tags ?? [];
 
-  /// 格式化日期字符串
-  String get formattedDate => DateFormat('yyyy/MM/dd').format(date);
+  /// 格式化日期字符串 (到分钟)
+  String get formattedDate => DateFormat('yyyy/MM/dd HH:mm').format(date);
+
+  /// 格式化短日期字符串 (只有日期)
+  String get formattedShortDate => DateFormat('yyyy/MM/dd').format(date);
+
+  /// 预估阅读时间 (分钟)
+  int get estimatedReadingTime {
+    if (content == null || content!.isEmpty) return 0;
+    // 假设每分钟阅读 300 字
+    final wordCount = content!.length;
+    return (wordCount / 300).ceil();
+  }
 
   /// 从 JSON 创建
   factory Article.fromJson(Map<String, dynamic> json) {
@@ -24,6 +39,11 @@ class Article {
       title: json['title'] as String,
       date: DateTime.parse(json['date'] as String),
       content: json['content'] as String?,
+      coverImage: json['coverImage'] as String?,
+      tags: (json['tags'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
     );
   }
 
@@ -34,6 +54,27 @@ class Article {
       'title': title,
       'date': date.toIso8601String(),
       'content': content,
+      'coverImage': coverImage,
+      'tags': tags,
     };
+  }
+
+  /// 复制并更新部分字段
+  Article copyWith({
+    String? id,
+    String? title,
+    DateTime? date,
+    String? content,
+    String? coverImage,
+    List<String>? tags,
+  }) {
+    return Article(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      date: date ?? this.date,
+      content: content ?? this.content,
+      coverImage: coverImage ?? this.coverImage,
+      tags: tags ?? this.tags,
+    );
   }
 }
