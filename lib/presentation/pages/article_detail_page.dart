@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/models/article.dart';
 import '../../providers/activity_provider.dart';
+import '../../widgets/app_toast.dart';
 
 /// 文章详情页 (Notion 风格)
 class ArticleDetailPage extends StatefulWidget {
@@ -37,7 +38,10 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     final activityProvider = context.read<ActivityProvider>();
     final newPinnedStatus = !_article.isPinned;
 
-    await activityProvider.updateArticlePinnedStatus(_article.id, newPinnedStatus);
+    await activityProvider.updateArticlePinnedStatus(
+      _article.id,
+      newPinnedStatus,
+    );
 
     setState(() {
       _article = _article.copyWith(
@@ -47,12 +51,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     });
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(newPinnedStatus ? '已置顶' : '已取消置顶'),
-          duration: const Duration(seconds: 1),
-        ),
-      );
+      AppToast.showSuccess(newPinnedStatus ? '已置顶' : '已取消置顶');
     }
   }
 
@@ -209,10 +208,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
                 ),
                 onPressed: () => Navigator.pop(context),
                 padding: const EdgeInsets.only(left: 16),
-                constraints: const BoxConstraints(
-                  minWidth: 40,
-                  minHeight: 40,
-                ),
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               ),
               actions: [
                 IconButton(
@@ -383,14 +379,11 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
                                   '#$tag',
                                   style: TextStyle(
                                     fontSize: 14,
-                                    color: theme.colorScheme.onSurface.withValues(
-                                      alpha: 0.7,
-                                    ),
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.7),
                                     decoration: TextDecoration.underline,
-                                    decorationColor:
-                                        theme.colorScheme.onSurface.withValues(
-                                      alpha: 0.3,
-                                    ),
+                                    decorationColor: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.3),
                                   ),
                                 ),
                               ),
@@ -400,9 +393,8 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
                                   '，',
                                   style: TextStyle(
                                     fontSize: 14,
-                                    color: theme.colorScheme.onSurface.withValues(
-                                      alpha: 0.7,
-                                    ),
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.7),
                                   ),
                                 ),
                             ],

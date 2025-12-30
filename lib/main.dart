@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/services/local_storage_service.dart';
@@ -15,6 +16,9 @@ import 'providers/auth_provider.dart';
 import 'providers/membership_provider.dart';
 
 import 'presentation/pages/splash_page.dart';
+
+// 全局 Navigator Key，用于 FToast
+GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -86,6 +90,8 @@ class MyApp extends StatelessWidget {
       themeMode: themeProvider.themeMode,
       home: const SplashPage(),
       debugShowCheckedModeBanner: false,
+      builder: FToastBuilder(),
+      navigatorKey: navigatorKey,
     );
   }
 }

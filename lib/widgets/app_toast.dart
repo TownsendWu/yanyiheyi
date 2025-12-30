@@ -1,136 +1,184 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../core/theme/app_colors.dart';
+import '../main.dart' show navigatorKey;
 
 /// 应用自定义 Toast 提示组件
+/// 基于 FlutterToast 的 FToast 实现，支持队列管理和多种位置
 class AppToast {
   AppToast._();
 
+  /// 单例 FToast 实例
+  static FToast? _fToast;
+
+  /// 获取 FToast 实例，按需初始化
+  static FToast get _instance {
+    _fToast ??= FToast();
+    _fToast!.init(navigatorKey.currentContext!);
+    return _fToast!;
+  }
+
   /// 显示成功提示
   static void showSuccess(
-    BuildContext context,
     String message, {
     Duration duration = const Duration(milliseconds: 1500),
+    ToastGravity gravity = ToastGravity.TOP,
   }) {
     _showToast(
-      context,
       message: message,
       icon: Icons.check_circle_outline,
       iconColor: AppColors.primary,
       duration: duration,
+      gravity: gravity,
     );
   }
 
   /// 显示信息提示
   static void showInfo(
-    BuildContext context,
     String message, {
     Duration duration = const Duration(milliseconds: 1500),
+    ToastGravity gravity = ToastGravity.TOP,
+    Color? iconColor,
   }) {
-    final theme = Theme.of(context);
     _showToast(
-      context,
       message: message,
       icon: Icons.info_outline,
-      iconColor: theme.colorScheme.primary,
+      iconColor: iconColor ?? Colors.blue,
       duration: duration,
+      gravity: gravity,
     );
   }
 
   /// 显示警告提示
   static void showWarning(
-    BuildContext context,
     String message, {
     Duration duration = const Duration(milliseconds: 2000),
+    ToastGravity gravity = ToastGravity.TOP,
   }) {
     _showToast(
-      context,
       message: message,
       icon: Icons.warning_amber_outlined,
       iconColor: Colors.amber,
       duration: duration,
+      gravity: gravity,
     );
   }
 
   /// 显示错误提示
   static void showError(
-    BuildContext context,
     String message, {
     Duration duration = const Duration(milliseconds: 2000),
+    ToastGravity gravity = ToastGravity.TOP,
+    Color? iconColor,
   }) {
-    final theme = Theme.of(context);
     _showToast(
-      context,
       message: message,
       icon: Icons.error_outline,
-      iconColor: theme.colorScheme.error,
+      iconColor: iconColor ?? Colors.red,
       duration: duration,
+      gravity: gravity,
     );
   }
 
   /// 显示自定义 Toast
-  static void _showToast(
-    BuildContext context, {
+  static void _showToast({
     required String message,
     required IconData icon,
     required Color iconColor,
     required Duration duration,
+    ToastGravity gravity = ToastGravity.TOP,
   }) {
+    final fToast = _instance;
+
+    // 创建自定义 Toast widget
+    final toast = _ToastWidget(
+      message: message,
+      icon: icon,
+      iconColor: iconColor,
+    );
+
+    // 显示 Toast
+    fToast.showToast(
+      child: toast,
+      gravity: gravity,
+      toastDuration: duration,
+      fadeDuration: const Duration(milliseconds: 300),
+      isDismissible: true, // 支持点击关闭
+    );
+  }
+
+  /// 移除当前显示的 Toast
+  static void removeCustomToast() {
+    _fToast?.removeCustomToast();
+  }
+
+  /// 移除所有排队等待的 Toast
+  static void removeQueuedCustomToasts() {
+    _fToast?.removeQueuedCustomToasts();
+  }
+}
+
+/// Toast Widget - 基于 Container 的自定义 UI
+class _ToastWidget extends StatelessWidget {
+  final String message;
+  final IconData icon;
+  final Color iconColor;
+
+  const _ToastWidget({
+    required this.message,
+    required this.icon,
+    required this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    // 检查 Scaffold 是否有 floatingActionButton
-    final scaffold = Scaffold.of(context);
-    final hasFab = scaffold.hasFloatingActionButton;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            // 图标
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: isDark ? 0.2 : 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                icon,
-                color: iconColor,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            // 消息文本
-            Expanded(
-              child: Text(
-                message,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
+          width: 1,
         ),
-        duration: duration,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        margin: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          bottom: hasFab ? 80 : 12, // 如果有 FAB，向上偏移
-          top: 12,
-        ),
-        backgroundColor: theme.colorScheme.surface,
-        elevation: isDark ? 2 : 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
-            width: 1,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.1),
+            blurRadius: isDark ? 8 : 16,
+            offset: const Offset(0, 4),
           ),
-        ),
-        behavior: SnackBarBehavior.floating,
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 图标
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: isDark ? 0.2 : 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          // 消息文本
+          Text(
+            message,
+            style: TextStyle(
+              fontSize: 15,
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
