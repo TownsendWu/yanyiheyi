@@ -4,6 +4,7 @@ import '../../models/activity_data.dart';
 import '../../models/auth_user.dart';
 import '../../models/membership.dart';
 import '../mock_data_service.dart';
+import '../article_storage_service.dart';
 import '../../../core/network/network_result.dart';
 import '../../../core/constants/api_constants.dart';
 import 'api_service_interface.dart';
@@ -11,6 +12,12 @@ import 'api_service_interface.dart';
 /// Mock API 服务实现
 /// 用于开发和测试，模拟真实的 API 调用
 class MockApiService implements ApiService {
+  final ArticleStorageService _articleStorage;
+
+  MockApiService({
+    required ArticleStorageService articleStorage,
+  }) : _articleStorage = articleStorage;
+
   /// 模拟网络延迟
   Future<void> _delay() async {
     final delay = ApiConstants.mockDelayMin +
@@ -127,20 +134,35 @@ class MockApiService implements ApiService {
     await _delay();
 
     try {
-      // 使用现有的 Mock 数据服务
-      final allArticles = MockDataService.generateArticleData();
+      // 从持久化存储获取文章数据
+      final allArticles = await _articleStorage.loadArticles();
+
+      // 标签筛选
+      var filteredArticles = allArticles;
+      if (tags != null && tags.isNotEmpty) {
+        filteredArticles = allArticles.where((article) {
+          return article.tags.any((tag) => tags.contains(tag));
+        }).toList();
+      }
+
+      // 排序：置顶的文章在前，然后按日期倒序
+      filteredArticles.sort((a, b) {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.date.compareTo(a.date);
+      });
 
       // 分页
       final start = (page - 1) * pageSize;
       final end = start + pageSize;
 
-      if (start >= allArticles.length) {
+      if (start >= filteredArticles.length) {
         return Success(<Article>[]);
       }
 
-      final articles = allArticles.sublist(
+      final articles = filteredArticles.sublist(
         start,
-        end > allArticles.length ? allArticles.length : end,
+        end > filteredArticles.length ? filteredArticles.length : end,
       );
 
       return Success(articles);
@@ -154,12 +176,10 @@ class MockApiService implements ApiService {
     await _delay();
 
     try {
-      final articles = MockDataService.generateArticleData();
-      final article = articles.firstWhere(
-        (a) => a.id == articleId,
-        orElse: () => throw NotFoundError.resource('文章'),
-      );
-
+      final article = await _articleStorage.getArticle(articleId);
+      if (article == null) {
+        throw NotFoundError.resource('文章');
+      }
       return Success(article);
     } catch (e) {
       return Failure(AppErrorFactory.fromException(e));
@@ -169,25 +189,45 @@ class MockApiService implements ApiService {
   @override
   Future<NetworkResult<Article>> createArticle(Article article) async {
     await _delay();
-    return Success(article);
+    try {
+      await _articleStorage.createArticle(article);
+      return Success(article);
+    } catch (e) {
+      return Failure(AppErrorFactory.fromException(e));
+    }
   }
 
   @override
   Future<NetworkResult<Article>> updateArticle(Article article) async {
     await _delay();
-    return Success(article);
+    try {
+      await _articleStorage.updateArticle(article);
+      return Success(article);
+    } catch (e) {
+      return Failure(AppErrorFactory.fromException(e));
+    }
   }
 
   @override
   Future<NetworkResult<void>> deleteArticle(String articleId) async {
     await _delay();
-    return const Success(null);
+    try {
+      await _articleStorage.deleteArticle(articleId);
+      return const Success(null);
+    } catch (e) {
+      return Failure(AppErrorFactory.fromException(e));
+    }
   }
 
   @override
   Future<NetworkResult<void>> toggleArticlePin(String articleId, bool isPinned) async {
     await _delay();
-    return const Success(null);
+    try {
+      await _articleStorage.toggleArticlePin(articleId, isPinned);
+      return const Success(null);
+    } catch (e) {
+      return Failure(AppErrorFactory.fromException(e));
+    }
   }
 
   // ==================== 活动数据相关 ====================

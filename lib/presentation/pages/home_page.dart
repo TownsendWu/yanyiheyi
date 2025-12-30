@@ -70,6 +70,14 @@ class _HomePageState extends State<HomePage> {
               final mockData = activityProvider.activities;
               final articles = activityProvider.articles;
 
+              // 调试信息
+              print('HomePage: activities.length = ${mockData.length}');
+              print('HomePage: articles.length = ${articles.length}');
+              print('HomePage: isLoading = ${activityProvider.isLoading}');
+              if (mockData.isNotEmpty) {
+                print('HomePage: first activity date = ${mockData.first.date}, count = ${mockData.first.count}');
+              }
+
               return SingleChildScrollView(
                 child: PageContainer(
                   extraPadding: const EdgeInsets.only(top: 8, bottom: 8),

@@ -4,22 +4,36 @@ import 'package:intl/intl.dart';
 class Article {
   final String id;
   final String title;
-  final DateTime date;
+  final DateTime date; // 创建日期
+  final DateTime? updatedAt; // 更新日期
   final String? content;
   final String? coverImage; // 封面图片 URL
   final List<String> tags; // 标签列表
   final bool isPinned; // 是否置顶
   final DateTime? pinnedAt; // 置顶时间
 
+  // 字体信息
+  final String? fontFamily; // 字体 family
+  final double? fontSize; // 字体大小
+  final int? fontWeight; // 字体粗细 (0-9, 对应 Flutter 的 FontWeight.w100 - w900)
+  final double? lineHeight; // 行高
+  final double? letterSpacing; // 字间距
+
   Article({
     required this.id,
     required this.title,
     required this.date,
+    this.updatedAt,
     this.content,
     this.coverImage,
     List<String>? tags,
     this.isPinned = false,
     this.pinnedAt,
+    this.fontFamily,
+    this.fontSize,
+    this.fontWeight,
+    this.lineHeight,
+    this.letterSpacing,
   }) : tags = tags ?? [];
 
   /// 格式化日期字符串 (到分钟)
@@ -42,6 +56,9 @@ class Article {
       id: json['id'] as String,
       title: json['title'] as String,
       date: DateTime.parse(json['date'] as String),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'] as String)
+          : null,
       content: json['content'] as String?,
       coverImage: json['coverImage'] as String?,
       tags: (json['tags'] as List<dynamic>?)
@@ -52,6 +69,11 @@ class Article {
       pinnedAt: json['pinnedAt'] != null
           ? DateTime.parse(json['pinnedAt'] as String)
           : null,
+      fontFamily: json['fontFamily'] as String?,
+      fontSize: json['fontSize'] as double?,
+      fontWeight: json['fontWeight'] as int?,
+      lineHeight: json['lineHeight'] as double?,
+      letterSpacing: json['letterSpacing'] as double?,
     );
   }
 
@@ -61,11 +83,17 @@ class Article {
       'id': id,
       'title': title,
       'date': date.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
       'content': content,
       'coverImage': coverImage,
       'tags': tags,
       'isPinned': isPinned,
       'pinnedAt': pinnedAt?.toIso8601String(),
+      'fontFamily': fontFamily,
+      'fontSize': fontSize,
+      'fontWeight': fontWeight,
+      'lineHeight': lineHeight,
+      'letterSpacing': letterSpacing,
     };
   }
 
@@ -74,21 +102,33 @@ class Article {
     String? id,
     String? title,
     DateTime? date,
+    DateTime? updatedAt,
     String? content,
     String? coverImage,
     List<String>? tags,
     bool? isPinned,
     DateTime? pinnedAt,
+    String? fontFamily,
+    double? fontSize,
+    int? fontWeight,
+    double? lineHeight,
+    double? letterSpacing,
   }) {
     return Article(
       id: id ?? this.id,
       title: title ?? this.title,
       date: date ?? this.date,
+      updatedAt: updatedAt ?? this.updatedAt,
       content: content ?? this.content,
       coverImage: coverImage ?? this.coverImage,
       tags: tags ?? this.tags,
       isPinned: isPinned ?? this.isPinned,
       pinnedAt: pinnedAt ?? this.pinnedAt,
+      fontFamily: fontFamily ?? this.fontFamily,
+      fontSize: fontSize ?? this.fontSize,
+      fontWeight: fontWeight ?? this.fontWeight,
+      lineHeight: lineHeight ?? this.lineHeight,
+      letterSpacing: letterSpacing ?? this.letterSpacing,
     );
   }
 }

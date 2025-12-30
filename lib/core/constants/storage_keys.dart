@@ -20,6 +20,8 @@ class StorageKeys {
   // 文章相关
   static const String pinnedArticles = 'pinned_articles';
   static const String draftArticles = 'draft_articles';
+  static const String articlesData = 'articles_data'; // 文章数据
+  static const String articlesInitialized = 'articles_initialized'; // 文章数据是否已初始化
 
   // 会员相关
   static const String membershipStatus = 'membership_status';

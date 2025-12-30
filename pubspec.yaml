@@ -52,10 +52,11 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - lib/assets/icon.svg
+    - assets/icons/icon.svg
+    - assets/data/mock_articles.json
 
   fonts:
     - family: LXGWWenKai
       fonts:
-        - asset: lib/assets/LXGWWenKai-Light.ttf
+        - asset: assets/fonts/LXGWWenKai-Light.ttf
           weight: 300

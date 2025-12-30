@@ -66,10 +66,14 @@ class _ArticleListState extends State<ArticleList> {
         if (bPinnedAt != null) return 1;
       }
 
-      // 都未置顶或置顶时间相同，按文章日期排序
+      // 都未置顶或置顶时间相同，按更新时间排序
+      // 优先使用 updatedAt，如果为空则使用 date
+      final aTime = a.updatedAt ?? a.date;
+      final bTime = b.updatedAt ?? b.date;
+
       return _isNewestFirst
-          ? b.date.compareTo(a.date)
-          : a.date.compareTo(b.date);
+          ? bTime.compareTo(aTime)
+          : aTime.compareTo(bTime);
     });
     return sorted;
   }

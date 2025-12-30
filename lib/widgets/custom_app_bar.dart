@@ -161,7 +161,7 @@ class _LogoWithAnimationState extends State<_LogoWithAnimation>
           );
         },
         child: SvgPicture.asset(
-          'lib/assets/icon.svg',
+          'assets/icons/icon.svg',
           width: 32,
           height: 32,
         ),

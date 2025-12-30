@@ -149,7 +149,7 @@ class _SplashPageState extends State<SplashPage>
                           ],
                         ),
                         child: SvgPicture.asset(
-                          'lib/assets/icon.svg',
+                          'assets/icons/icon.svg',
                           width: AppConstants.logoSize,
                           height: AppConstants.logoSize,
                         ),

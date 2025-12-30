@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/services/local_storage_service.dart';
 import 'data/services/api/api_service_interface.dart';
+import 'data/services/article_storage_service.dart';
 
 // Providers
 import 'providers/theme_provider.dart';
@@ -21,6 +22,14 @@ void main() async {
   // 初始化核心服务
   final prefs = await SharedPreferences.getInstance();
   final storage = await LocalStorageService.getInstance();
+
+  // 初始化文章存储服务
+  final articleStorage = ArticleStorageService.getInstance(storage);
+  await articleStorage.initializeArticles();
+
+  // 设置文章存储服务到 API 工厂
+  ApiServiceFactory.setArticleStorage(articleStorage);
+
   final apiService = ApiServiceFactory.getInstance();
 
   runApp(
@@ -56,7 +65,7 @@ void main() async {
         // 现有 Providers（保持兼容）
         ChangeNotifierProvider(create: (_) => ThemeProvider(prefs: prefs)),
         ChangeNotifierProvider(create: (_) => UserProvider(prefs: prefs)),
-        ChangeNotifierProvider(create: (_) => ActivityProvider(delayInit: true)),
+        ChangeNotifierProvider(create: (_) => ActivityProvider(apiService: apiService, delayInit: true)),
       ],
       child: const MyApp(),
     ),

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../data/models/activity_data.dart';
 import '../data/models/article.dart';
 import '../data/services/mock_data_service.dart';
+import '../data/repositories/article_repository.dart';
+import '../data/services/api/api_service_interface.dart';
 
 /// 活动数据状态管理 Provider
 class ActivityProvider extends ChangeNotifier {
@@ -10,9 +11,14 @@ class ActivityProvider extends ChangeNotifier {
   List<Article> _articles = [];
   bool _isLoading = true;
 
-  static const String _pinnedArticlesKey = 'pinned_articles';
+  final ArticleRepository _articleRepository;
 
-  ActivityProvider({bool syncInit = false, bool delayInit = false}) {
+  ActivityProvider({
+    required ApiService apiService,
+    bool syncInit = false,
+    bool delayInit = false,
+  })  : _articleRepository = ArticleRepository(apiService: apiService),
+        super() {
     if (!delayInit) {
       if (syncInit) {
         _initializeDataSync();
@@ -46,141 +52,63 @@ class ActivityProvider extends ChangeNotifier {
     // 模拟异步加载
     await Future.delayed(const Duration(milliseconds: 100));
 
-    _activities = MockDataService.generateActivityData();
-    _articles = MockDataService.generateArticleData();
+    // 从持久化存储加载文章数据
+    final result = await _articleRepository.getArticles(
+      page: 1,
+      pageSize: 1000, // 加载所有文章
+    );
 
-    // 加载置顶状态
-    await _loadPinnedStatus();
+    if (result.isSuccess && result.getData != null) {
+      _articles = result.getData!;
+      // 根据真实文章数据生成活动数据
+      print('ActivityProvider: 成功加载 ${_articles.length} 篇文章');
+      _activities = MockDataService.generateActivityDataFromArticles(_articles);
+      print('ActivityProvider: 生成了 ${_activities.length} 条活动数据');
+      print('ActivityProvider: 总文章数 = ${totalCount}');
+    } else {
+      // 如果加载失败，使用 mock 数据
+      print('ActivityProvider: 加载失败，使用 mock 数据');
+      _articles = await MockDataService.generateArticleData();
+      _activities = MockDataService.generateActivityData();
+    }
 
     _isLoading = false;
     notifyListeners();
   }
 
   /// 同步初始化数据 (用于测试)
+  /// 注意：由于文章数据现在是异步加载的，这个方法只初始化活动数据
   void _initializeDataSync() {
-    _activities = MockDataService.generateActivityData();
-    _articles = MockDataService.generateArticleData();
+    _activities = [];
+    _articles = []; // 文章数据需要异步加载
     _isLoading = false;
-    // 同步初始化也需要加载置顶状态
-    SharedPreferences.getInstance().then((prefs) {
-      final pinnedData = prefs.getStringList(_pinnedArticlesKey) ?? [];
-
-      // 创建置顶信息映射
-      final pinnedMap = <String, DateTime>{};
-      for (final item in pinnedData) {
-        final parts = item.split(':');
-        if (parts.length == 2) {
-          final pinnedAt = DateTime.tryParse(parts[1]);
-          if (pinnedAt != null) {
-            pinnedMap[parts[0]] = pinnedAt;
-          }
-        }
-      }
-
-      // 更新文章的置顶状态
-      _articles = _articles.map((article) {
-        final pinnedAt = pinnedMap[article.id];
-        if (pinnedAt != null) {
-          return article.copyWith(
-            isPinned: true,
-            pinnedAt: pinnedAt,
-          );
-        }
-        return article;
-      }).toList();
-
-      notifyListeners();
-    });
-  }
-
-  /// 从 SharedPreferences 加载置顶状态
-  Future<void> _loadPinnedStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final pinnedData = prefs.getStringList(_pinnedArticlesKey) ?? [];
-
-    // 创建置顶信息映射
-    final pinnedMap = <String, DateTime>{};
-    for (final item in pinnedData) {
-      final parts = item.split(':');
-      if (parts.length == 2) {
-        final pinnedAt = DateTime.tryParse(parts[1]);
-        if (pinnedAt != null) {
-          pinnedMap[parts[0]] = pinnedAt;
-        }
-      }
-    }
-
-    // 更新文章的置顶状态
-    if (pinnedMap.isNotEmpty) {
-      _articles = _articles.map((article) {
-        final pinnedAt = pinnedMap[article.id];
-        if (pinnedAt != null) {
-          return article.copyWith(
-            isPinned: true,
-            pinnedAt: pinnedAt,
-          );
-        }
-        return article;
-      }).toList();
-    }
+    notifyListeners();
   }
 
   /// 更新文章的置顶状态
   Future<void> updateArticlePinnedStatus(String articleId, bool isPinned) async {
-    final prefs = await SharedPreferences.getInstance();
-    final pinnedData = prefs.getStringList(_pinnedArticlesKey) ?? [];
+    // 调用 repository 更新置顶状态（会持久化到 SharedPreferences）
+    final result = await _articleRepository.toggleArticlePin(articleId, isPinned);
 
-    if (isPinned) {
-      // 添加或更新置顶信息
-      final now = DateTime.now();
-      final newEntry = '$articleId:${now.toIso8601String()}';
-      final existingIndex = pinnedData.indexWhere((item) => item.startsWith('$articleId:'));
-
-      if (existingIndex != -1) {
-        pinnedData[existingIndex] = newEntry;
-      } else {
-        pinnedData.add(newEntry);
-      }
-
-      await prefs.setStringList(_pinnedArticlesKey, pinnedData);
-
+    if (result.isSuccess) {
       // 更新内存中的文章状态
       final updatedArticles = _articles.map((article) {
         if (article.id == articleId) {
           return article.copyWith(
-            isPinned: true,
-            pinnedAt: now,
+            isPinned: isPinned,
+            pinnedAt: isPinned ? DateTime.now() : null,
           );
         }
         return article;
       }).toList();
 
-      // 只有当文章列表真正发生变化时才更新和通知
-      if (updatedArticles.length != _articles.length ||
-          updatedArticles.any((a) => a.isPinned != _articles.firstWhere((b) => b.id == a.id).isPinned)) {
-        _articles = updatedArticles;
-        notifyListeners();
-      }
-    } else {
-      // 移除置顶信息
-      pinnedData.removeWhere((item) => item.startsWith('$articleId:'));
+      // 检查是否有变化
+      final hasChanges = updatedArticles.any((a) {
+        final oldArticle = _articles.firstWhere((b) => b.id == a.id);
+        return a.isPinned != oldArticle.isPinned;
+      });
 
-      await prefs.setStringList(_pinnedArticlesKey, pinnedData);
-
-      // 更新内存中的文章状态
-      final updatedArticles = _articles.map((article) {
-        if (article.id == articleId) {
-          return article.copyWith(
-            isPinned: false,
-            pinnedAt: null,
-          );
-        }
-        return article;
-      }).toList();
-
-      // 只有当文章列表真正发生变化时才更新和通知
-      if (updatedArticles.length != _articles.length ||
-          updatedArticles.any((a) => a.isPinned != _articles.firstWhere((b) => b.id == a.id).isPinned)) {
+      if (hasChanges) {
         _articles = updatedArticles;
         notifyListeners();
       }

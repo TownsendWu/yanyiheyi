@@ -6,6 +6,7 @@ import '../providers/user_provider.dart';
 import '../presentation/pages/user_profile_edit_page.dart';
 import '../presentation/pages/help_and_feedback_page.dart';
 import '../presentation/pages/about_page.dart';
+import '../presentation/pages/settings_page.dart';
 
 /// 侧边菜单的内容组件
 ///
@@ -73,9 +74,13 @@ class MenuContent extends StatelessWidget {
                     icon: Icons.settings_outlined,
                     title: '设置',
                     subtitle: '应用设置和偏好',
-                    onTap: () {
-                      Navigator.pop(context);
-                      print('打开设置');
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SettingsPage(),
+                        ),
+                      );
                     },
                   ),
                   _MenuItem(
