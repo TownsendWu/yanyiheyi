@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/models/article.dart';
 import '../../providers/activity_provider.dart';
 import '../../widgets/app_toast.dart';
+import '../../utils/image_cache_manager.dart';
 
 /// 文章详情页 (Notion 风格)
 class ArticleDetailPage extends StatefulWidget {
@@ -19,11 +21,31 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
   late Article _article;
   final FocusNode _titleFocusNode = FocusNode();
 
+  // 本地缓存的图片路径
+  String? _cachedImagePath;
+  final ImageCacheManager _imageCacheManager = ImageCacheManager();
+
   @override
   void initState() {
     super.initState();
     _article = widget.article;
     _titleController = TextEditingController(text: _article.title);
+    // 初始化时加载缓存图片
+    _loadCachedImage();
+  }
+
+  /// 加载缓存的图片
+  Future<void> _loadCachedImage() async {
+    if (_article.coverImage == null || _article.coverImage!.isEmpty) {
+      return;
+    }
+
+    final cachedPath = await _imageCacheManager.getImage(_article.coverImage!);
+    if (mounted) {
+      setState(() {
+        _cachedImagePath = cachedPath;
+      });
+    }
   }
 
   @override
@@ -195,7 +217,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
           slivers: [
             // App Bar with back button and more options
             SliverAppBar(
-              expandedHeight: _article.coverImage != null ? 100 : 0,
+              expandedHeight: _cachedImagePath != null ? 100 : 0,
               pinned: true,
               floating: false,
               backgroundColor: theme.scaffoldBackgroundColor,
@@ -225,37 +247,18 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
                   ),
                 ),
               ],
-              flexibleSpace: _article.coverImage != null
+              flexibleSpace: _cachedImagePath != null
                   ? FlexibleSpaceBar(
                       background: Stack(
                         fit: StackFit.expand,
                         children: [
-                          Image.network(
-                            _article.coverImage!,
+                          Image.file(
+                            File(_cachedImagePath!),
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
                               return Container(
                                 color:
                                     theme.colorScheme.surfaceContainerHighest,
-                              );
-                            },
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Container(
-                                color:
-                                    theme.colorScheme.surfaceContainerHighest,
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    value:
-                                        loadingProgress.expectedTotalBytes !=
-                                            null
-                                        ? loadingProgress
-                                                  .cumulativeBytesLoaded /
-                                              loadingProgress
-                                                  .expectedTotalBytes!
-                                        : null,
-                                  ),
-                                ),
                               );
                             },
                           ),
