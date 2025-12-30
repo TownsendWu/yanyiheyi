@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../data/models/article.dart';
 import '../../providers/activity_provider.dart';
 import '../../widgets/app_toast.dart';
@@ -24,14 +25,17 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
   // 本地缓存的图片路径
   String? _cachedImagePath;
   final ImageCacheManager _imageCacheManager = ImageCacheManager();
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
     _article = widget.article;
     _titleController = TextEditingController(text: _article.title);
-    // 初始化时加载缓存图片
-    _loadCachedImage();
+    // 初始化时加载缓存图片（延迟执行，避免阻塞启动）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCachedImage();
+    });
   }
 
   /// 加载缓存的图片
@@ -40,6 +44,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
       return;
     }
 
+    // 在后台执行，避免阻塞主线程
     final cachedPath = await _imageCacheManager.getImage(_article.coverImage!);
     if (mounted) {
       setState(() {
@@ -77,6 +82,225 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     }
   }
 
+  /// 添加或更新封面图
+  Future<void> _add_or_update_cover_image() async {
+    final theme = Theme.of(context);
+
+    // 显示选项菜单
+    final result = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        MediaQuery.of(context).size.width - 150,
+        kToolbarHeight + MediaQuery.of(context).padding.top,
+        MediaQuery.of(context).size.width,
+        kToolbarHeight + MediaQuery.of(context).padding.top + 200,
+      ),
+      items: [
+        PopupMenuItem<String>(
+          value: 'gallery',
+          child: Row(
+            children: [
+              Icon(
+                Icons.photo_library_outlined,
+                size: 20,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '相册',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'url',
+          child: Row(
+            children: [
+              Icon(
+                Icons.link_outlined,
+                size: 20,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'URL',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_article.coverImage != null)
+          PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(
+                  Icons.delete_outline,
+                  size: 20,
+                  color: theme.colorScheme.error.withValues(alpha: 0.8),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '删除',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: theme.colorScheme.error.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+
+    if (result == null) return;
+
+    switch (result) {
+      case 'gallery':
+        await _pickImageFromGallery();
+        break;
+      case 'url':
+        await _inputImageUrl();
+        break;
+      case 'delete':
+        await _deleteCoverImage();
+        break;
+    }
+  }
+
+  /// 从相册选择图片
+  Future<void> _pickImageFromGallery() async {
+    final activityProvider = context.read<ActivityProvider>();
+
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+
+      if (image == null) return;
+
+      // 将图片保存到缓存目录
+      final imageFile = File(image.path);
+      final cachedPath = await _imageCacheManager.saveLocalImage(imageFile);
+
+      if (cachedPath != null) {
+        // 更新文章的封面图（使用本地文件路径）
+        await activityProvider.updateArticleCoverImage(_article.id, cachedPath);
+
+        if (mounted) {
+          setState(() {
+            _article = _article.copyWith(coverImage: cachedPath);
+            _cachedImagePath = cachedPath;
+          });
+          AppToast.showSuccess('封面图已更新');
+        }
+      } else {
+        if (mounted) {
+          AppToast.showError('保存图片失败');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        AppToast.showError('选择图片失败: $e');
+      }
+    }
+  }
+
+  /// 输入图片 URL
+  Future<void> _inputImageUrl() async {
+    final activityProvider = context.read<ActivityProvider>();
+    final TextEditingController urlController = TextEditingController();
+
+    final url = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('输入图片 URL'),
+        content: TextField(
+          controller: urlController,
+          decoration: const InputDecoration(
+            hintText: 'https://example.com/image.jpg',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, urlController.text.trim()),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+
+    if (url == null || url.isEmpty) return;
+
+    try {
+      // 下载并缓存图片
+      AppToast.showInfo('正在下载图片...');
+      final cachedPath = await _imageCacheManager.getImage(url);
+
+      if (cachedPath != null) {
+        // 更新文章的封面图（使用本地缓存路径）
+        await activityProvider.updateArticleCoverImage(_article.id, cachedPath);
+
+        if (mounted) {
+          setState(() {
+            _article = _article.copyWith(coverImage: cachedPath);
+            _cachedImagePath = cachedPath;
+          });
+          AppToast.showSuccess('封面图已更新');
+        }
+      } else {
+        if (mounted) {
+          AppToast.showError('下载图片失败');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        AppToast.showError('下载图片失败: $e');
+      }
+    }
+  }
+
+  /// 删除封面图
+  Future<void> _deleteCoverImage() async {
+    final activityProvider = context.read<ActivityProvider>();
+
+    // 删除缓存文件
+    if (_cachedImagePath != null) {
+      await _imageCacheManager.deleteCachedFile(_cachedImagePath!);
+    }
+
+    // 删除网络图片的缓存（如果原始是 URL）
+    if (_article.coverImage != null &&
+        _article.coverImage!.startsWith('http')) {
+      await _imageCacheManager.deleteCachedImage(_article.coverImage!);
+    }
+
+    // 更新文章（删除 coverImage）
+    await activityProvider.updateArticleCoverImage(_article.id, null);
+
+    if (mounted) {
+      setState(() {
+        _article = _article.copyWith(coverImage: null);
+        _cachedImagePath = null;
+      });
+      AppToast.showSuccess('封面图已删除');
+    }
+  }
+
   /// 显示更多选项菜单
   void _showMoreMenu(BuildContext context) {
     final theme = Theme.of(context);
@@ -103,6 +327,26 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
               const SizedBox(width: 12),
               Text(
                 '生成文字卡片',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'add_or_update_cover',
+          child: Row(
+            children: [
+              Icon(
+                Icons.style_outlined,
+                size: 20,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '添加/更换背景',
                 style: TextStyle(
                   fontSize: 15,
                   color: theme.colorScheme.onSurface,
@@ -187,6 +431,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
       case 'generate_card':
         // TODO: 实现生成文字卡片功能
         print('生成文字卡片');
+        break;
+      case 'add_or_update_cover':
+        _add_or_update_cover_image();
         break;
       case 'add_tag':
         // TODO: 实现添加标签功能

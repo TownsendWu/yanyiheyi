@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
+import 'package:uuid/uuid.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 
@@ -155,6 +157,60 @@ class ImageCacheManager {
     } catch (e) {
       debugPrint('✗ 获取缓存大小失败: $e');
       return 0;
+    }
+  }
+
+  /// 保存本地图片到缓存目录
+  /// 使用 UUID 作为文件名
+  Future<String?> saveLocalImage(File imageFile) async {
+    try {
+      final cacheDir = await _cacheDirectory;
+      final uuid = const Uuid().v4();
+      final fileName = '$uuid.jpg';
+      final cachedFile = await imageFile.copy('${cacheDir.path}/$fileName');
+
+      debugPrint('✓ 本地图片已缓存: ${cachedFile.path}');
+      return cachedFile.path;
+    } catch (e) {
+      debugPrint('✗ 保存本地图片失败: $e');
+      return null;
+    }
+  }
+
+  /// 删除指定 URL 对应的缓存文件
+  Future<bool> deleteCachedImage(String url) async {
+    try {
+      final cacheDir = await _cacheDirectory;
+      final fileName = _generateFileName(url);
+      final file = File('${cacheDir.path}/$fileName');
+
+      if (await file.exists()) {
+        await file.delete();
+        debugPrint('✓ 缓存已删除: $url');
+        return true;
+      }
+
+      debugPrint('✗ 缓存文件不存在: $url');
+      return false;
+    } catch (e) {
+      debugPrint('✗ 删除缓存失败: $e');
+      return false;
+    }
+  }
+
+  /// 根据本地文件路径删除缓存
+  Future<bool> deleteCachedFile(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+        debugPrint('✓ 缓存文件已删除: $filePath');
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('✗ 删除缓存文件失败: $e');
+      return false;
     }
   }
 }

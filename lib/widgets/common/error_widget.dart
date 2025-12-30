@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../../core/network/network_result.dart';
-import '../../../../core/theme/app_colors.dart';
+import '../../../core/network/network_result.dart';
+import '../../../core/theme/app_colors.dart';
 
 /// 错误显示组件
 class AppErrorWidget extends StatelessWidget {

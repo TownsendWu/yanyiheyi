@@ -115,6 +115,29 @@ class ActivityProvider extends ChangeNotifier {
     }
   }
 
+  /// 更新文章的封面图
+  Future<void> updateArticleCoverImage(String articleId, String? coverImage) async {
+    // 查找文章
+    final article = _articles.firstWhere((a) => a.id == articleId);
+
+    // 调用 repository 更新文章（会持久化到 SharedPreferences）
+    final updatedArticle = article.copyWith(coverImage: coverImage);
+    final result = await _articleRepository.updateArticle(updatedArticle);
+
+    if (result.isSuccess) {
+      // 更新内存中的文章状态
+      final updatedArticles = _articles.map((a) {
+        if (a.id == articleId) {
+          return updatedArticle;
+        }
+        return a;
+      }).toList();
+
+      _articles = updatedArticles;
+      notifyListeners();
+    }
+  }
+
   /// 刷新数据
   Future<void> refresh() async {
     await _initializeData();
