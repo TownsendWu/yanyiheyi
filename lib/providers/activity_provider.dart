@@ -138,6 +138,61 @@ class ActivityProvider extends ChangeNotifier {
     }
   }
 
+  /// 更新文章的标签
+  Future<void> updateArticleTags(String articleId, List<String> tags) async {
+    // 查找文章
+    final article = _articles.firstWhere((a) => a.id == articleId);
+
+    // 调用 repository 更新文章（会持久化到 SharedPreferences）
+    final updatedArticle = article.copyWith(tags: tags);
+    final result = await _articleRepository.updateArticle(updatedArticle);
+
+    if (result.isSuccess) {
+      // 更新内存中的文章状态
+      final updatedArticles = _articles.map((a) {
+        if (a.id == articleId) {
+          return updatedArticle;
+        }
+        return a;
+      }).toList();
+
+      _articles = updatedArticles;
+      notifyListeners();
+    }
+  }
+
+  /// 删除文章
+  Future<void> deleteArticle(String articleId) async {
+    // 调用 repository 删除文章（会持久化到 SharedPreferences）
+    final result = await _articleRepository.deleteArticle(articleId);
+
+    if (result.isSuccess) {
+      // 从内存中移除文章
+      _articles = _articles.where((a) => a.id != articleId).toList();
+
+      // 重新生成活动数据
+      _activities = MockDataService.generateActivityDataFromArticles(_articles);
+
+      notifyListeners();
+    }
+  }
+
+  /// 批量删除文章
+  Future<void> deleteArticles(List<String> articleIds) async {
+    // 逐个删除文章
+    for (final articleId in articleIds) {
+      await _articleRepository.deleteArticle(articleId);
+    }
+
+    // 从内存中移除文章
+    _articles = _articles.where((a) => !articleIds.contains(a.id)).toList();
+
+    // 重新生成活动数据
+    _activities = MockDataService.generateActivityDataFromArticles(_articles);
+
+    notifyListeners();
+  }
+
   /// 刷新数据
   Future<void> refresh() async {
     await _initializeData();

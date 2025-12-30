@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/theme/app_colors.dart';
-import '../../core/constants/app_constants.dart';
-import '../../providers/activity_provider.dart';
+import '../core/theme/app_colors.dart';
+import '../core/constants/app_constants.dart';
+import '../providers/activity_provider.dart';
 import 'home_page.dart';
 
 /// 开屏页

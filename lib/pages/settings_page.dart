@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import '../../core/theme/app_colors.dart';
-import '../../providers/activity_provider.dart';
-import '../../data/services/article_storage_service.dart';
-import '../../data/services/mock_data_service.dart';
-import '../../core/services/local_storage_service.dart';
+import '../core/theme/app_colors.dart';
+import '../providers/activity_provider.dart';
+import '../data/services/article_storage_service.dart';
+import '../data/services/mock_data_service.dart';
+import '../core/services/local_storage_service.dart';
 
 /// 设置页面
 class SettingsPage extends StatefulWidget {

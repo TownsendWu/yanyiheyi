@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../core/theme/app_colors.dart';
-import '../../widgets/page_container.dart';
+import '../core/theme/app_colors.dart';
+import '../widgets/page_container.dart';
 
 /// 帮助与反馈页面
 ///

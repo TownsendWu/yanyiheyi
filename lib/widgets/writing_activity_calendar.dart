@@ -91,7 +91,7 @@ class _WritingActivityCalendarState extends State<WritingActivityCalendar> {
             widget.totalCountLabel ??
                 '${DateTime.now().year} 总共创作了 $_getTotalCount() 篇文章',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 15,
               color: isDark ? Colors.white70 : Colors.black87,
             ),
           ),

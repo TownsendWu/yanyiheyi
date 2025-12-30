@@ -3,10 +3,10 @@ import 'package:provider/provider.dart';
 import '../core/theme/app_colors.dart';
 import '../data/models/user_profile.dart';
 import '../providers/user_provider.dart';
-import '../presentation/pages/user_profile_edit_page.dart';
-import '../presentation/pages/help_and_feedback_page.dart';
-import '../presentation/pages/about_page.dart';
-import '../presentation/pages/settings_page.dart';
+import '../pages/user_profile_edit_page.dart';
+import '../pages/help_and_feedback_page.dart';
+import '../pages/about_page.dart';
+import '../pages/settings_page.dart';
 
 /// 侧边菜单的内容组件
 ///

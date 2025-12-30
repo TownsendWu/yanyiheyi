@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../data/models/user_profile.dart';
-import '../../core/theme/app_colors.dart';
-import '../../widgets/page_container.dart';
+import '../data/models/user_profile.dart';
+import '../core/theme/app_colors.dart';
+import '../widgets/page_container.dart';
 
 /// 用户信息编辑页面
 class UserProfileEditPage extends StatefulWidget {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import '../../core/theme/app_colors.dart';
-import '../../widgets/page_container.dart';
+import '../core/theme/app_colors.dart';
+import '../widgets/page_container.dart';
 
 /// 关于页面
 ///
@@ -148,7 +148,6 @@ class _AboutPageState extends State<AboutPage> {
   /// 版本信息卡片
   Widget _buildVersionCard(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
     final cardColor = isDark ? AppColors.darkSurface : AppColors.lightSurface;
 
     return Container(

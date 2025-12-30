@@ -15,7 +15,7 @@ import 'providers/activity_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/membership_provider.dart';
 
-import 'presentation/pages/splash_page.dart';
+import 'pages/splash_page.dart';
 
 // 全局 Navigator Key，用于 FToast
 GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
