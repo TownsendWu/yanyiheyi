@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import '../core/theme/app_colors.dart';
 import '../main.dart' show navigatorKey;
 
 /// 应用自定义 Toast 提示组件
@@ -26,8 +25,6 @@ class AppToast {
   }) {
     _showToast(
       message: message,
-      icon: Icons.check_circle_outline,
-      iconColor: AppColors.primary,
       duration: duration,
       gravity: gravity,
     );
@@ -38,12 +35,9 @@ class AppToast {
     String message, {
     Duration duration = const Duration(milliseconds: 1500),
     ToastGravity gravity = ToastGravity.TOP,
-    Color? iconColor,
   }) {
     _showToast(
       message: message,
-      icon: Icons.info_outline,
-      iconColor: iconColor ?? Colors.blue,
       duration: duration,
       gravity: gravity,
     );
@@ -57,8 +51,6 @@ class AppToast {
   }) {
     _showToast(
       message: message,
-      icon: Icons.warning_amber_outlined,
-      iconColor: Colors.amber,
       duration: duration,
       gravity: gravity,
     );
@@ -69,12 +61,9 @@ class AppToast {
     String message, {
     Duration duration = const Duration(milliseconds: 2000),
     ToastGravity gravity = ToastGravity.TOP,
-    Color? iconColor,
   }) {
     _showToast(
       message: message,
-      icon: Icons.error_outline,
-      iconColor: iconColor ?? Colors.red,
       duration: duration,
       gravity: gravity,
     );
@@ -83,19 +72,13 @@ class AppToast {
   /// 显示自定义 Toast
   static void _showToast({
     required String message,
-    required IconData icon,
-    required Color iconColor,
     required Duration duration,
     ToastGravity gravity = ToastGravity.TOP,
   }) {
     final fToast = _instance;
 
     // 创建自定义 Toast widget
-    final toast = _ToastWidget(
-      message: message,
-      icon: icon,
-      iconColor: iconColor,
-    );
+    final toast = _ToastWidget(message: message);
 
     // 显示 Toast
     fToast.showToast(
@@ -121,13 +104,9 @@ class AppToast {
 /// Toast Widget - 基于 Container 的自定义 UI
 class _ToastWidget extends StatelessWidget {
   final String message;
-  final IconData icon;
-  final Color iconColor;
 
   const _ToastWidget({
     required this.message,
-    required this.icon,
-    required this.iconColor,
   });
 
   @override
@@ -152,33 +131,13 @@ class _ToastWidget extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 图标
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: isDark ? 0.2 : 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          // 消息文本
-          Text(
-            message,
-            style: TextStyle(
-              fontSize: 15,
-              color: theme.colorScheme.onSurface,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
+      child: Text(
+        message,
+        style: TextStyle(
+          fontSize: 15,
+          color: theme.colorScheme.onSurface,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }

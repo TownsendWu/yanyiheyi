@@ -169,36 +169,49 @@ class _HomePageState extends State<HomePage> {
               ),
           ],
         ),
-        floatingActionButton: _isSelectionMode ? null : Builder(
-          builder: (context) {
-            return ExpandableFAB(
-              offsetFromBottom: -60,
-              buttonSize: 48,
-              expandedButtonSize: 48,
-              spacing: 12,
-              offsetFromRight: 18,
-              items: [
-                FABItem(
-                  icon: Icons.edit,
-                  onPressed: () => print('新建文章'),
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  iconColor: Colors.white,
-                ),
-                FABItem(
-                  icon: Icons.photo_camera,
-                  onPressed: () => print('拍照记录'),
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  iconColor: Colors.white,
-                ),
-                FABItem(
-                  icon: Icons.mic,
-                  onPressed: () => print('语音记录'),
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  iconColor: Colors.white,
-                ),
-              ],
-            );
-          },
+        floatingActionButton: IgnorePointer(
+          ignoring: _isSelectionMode,
+          child: AnimatedSlide(
+            offset: _isSelectionMode ? const Offset(0, 2) : Offset.zero,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            child: AnimatedOpacity(
+              opacity: _isSelectionMode ? 0.0 : 1.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              child: Builder(
+                builder: (context) {
+                  return ExpandableFAB(
+                    offsetFromBottom: -60,
+                    buttonSize: 48,
+                    expandedButtonSize: 48,
+                    spacing: 12,
+                    offsetFromRight: 18,
+                    items: [
+                      FABItem(
+                        icon: Icons.edit,
+                        onPressed: () => print('新建文章'),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        iconColor: Colors.white,
+                      ),
+                      FABItem(
+                        icon: Icons.photo_camera,
+                        onPressed: () => print('拍照记录'),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        iconColor: Colors.white,
+                      ),
+                      FABItem(
+                        icon: Icons.mic,
+                        onPressed: () => print('语音记录'),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        iconColor: Colors.white,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
         ),
       ),
     );
