@@ -98,6 +98,7 @@ class Article {
   }
 
   /// 复制并更新部分字段
+  /// 对于可空类型，使用 ValueNotifier 包装以区分"不更新"和"设置为 null"
   Article copyWith({
     String? id,
     String? title,
@@ -113,18 +114,21 @@ class Article {
     int? fontWeight,
     double? lineHeight,
     double? letterSpacing,
+    bool clearCoverImage = false, // 新增：专门用于清除 coverImage
+    bool clearContent = false, // 新增：专门用于清除 content
+    bool clearFontFamily = false, // 新增：专门用于清除 fontFamily
   }) {
     return Article(
       id: id ?? this.id,
       title: title ?? this.title,
       date: date ?? this.date,
       updatedAt: updatedAt ?? this.updatedAt,
-      content: content ?? this.content,
-      coverImage: coverImage ?? this.coverImage,
+      content: clearContent ? null : (content ?? this.content),
+      coverImage: clearCoverImage ? null : (coverImage ?? this.coverImage),
       tags: tags ?? this.tags,
       isPinned: isPinned ?? this.isPinned,
       pinnedAt: pinnedAt ?? this.pinnedAt,
-      fontFamily: fontFamily ?? this.fontFamily,
+      fontFamily: clearFontFamily ? null : (fontFamily ?? this.fontFamily),
       fontSize: fontSize ?? this.fontSize,
       fontWeight: fontWeight ?? this.fontWeight,
       lineHeight: lineHeight ?? this.lineHeight,

@@ -181,17 +181,17 @@ class _ArticleListState extends State<ArticleList> {
       articles: widget.articles,
     );
 
-    handler
-        .handleDelete(selectedArticleIds, (articleId) {
-          // 从选中列表中移除
-          _selectedArticleIds.remove(articleId);
-        })
-        .then((_) {
-          if (_selectedArticleIds.isNotEmpty) {
-            widget.onArticlesDeleted?.call(_selectedArticleIds.toList());
-          }
-          _exitSelectionMode();
-        });
+    // 保存要删除的文章 ID 列表
+    final idsToDelete = List<String>.from(selectedArticleIds);
+
+    handler.handleDelete(selectedArticleIds, (articleId) {
+      // 从选中列表中移除
+      _selectedArticleIds.remove(articleId);
+    }).then((_) {
+      // 通知 HomePage 删除文章（传递要删除的 ID 列表）
+      widget.onArticlesDeleted?.call(idsToDelete);
+      _exitSelectionMode();
+    });
   }
 
   /// 处理全选操作

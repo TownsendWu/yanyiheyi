@@ -41,10 +41,43 @@ class ImageCacheManager {
 
   /// 从 URL 生成文件名
   /// 使用 URL 的 MD5 哈希值作为文件名，避免特殊字符问题
+  /// 如果 URL 中包含图片扩展名，则使用该扩展名，否则默认使用 .jpg
   String _generateFileName(String url) {
     final bytes = utf8.encode(url);
     final hash = md5.convert(bytes);
-    return '$hash.jpg';
+
+    // 提取 URL 中的文件扩展名
+    String extension = '.jpg'; // 默认扩展名
+    final uri = Uri.tryParse(url);
+    if (uri != null && uri.hasAbsolutePath) {
+      final path = uri.path;
+      final lastDotIndex = path.lastIndexOf('.');
+      if (lastDotIndex != -1 && lastDotIndex < path.length - 1) {
+        // 确保点后面有字符（排除以点结尾的情况）
+        final ext = path.substring(lastDotIndex).toLowerCase();
+        // 检查是否是常见的图片扩展名
+        const imageExtensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'};
+        if (imageExtensions.contains(ext)) {
+          extension = ext;
+        }
+      }
+    }
+
+    return '$hash$extension';
+  }
+
+  /// 从文件路径提取扩展名
+  /// 如果不是图片格式或无法识别，返回 .jpg
+  String _extractImageExtension(String filePath) {
+    final lastDotIndex = filePath.lastIndexOf('.');
+    if (lastDotIndex != -1 && lastDotIndex < filePath.length - 1) {
+      final ext = filePath.substring(lastDotIndex).toLowerCase();
+      const imageExtensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'};
+      if (imageExtensions.contains(ext)) {
+        return ext;
+      }
+    }
+    return '.jpg'; // 默认扩展名
   }
 
   /// 检查本地是否有缓存的图片
@@ -160,12 +193,13 @@ class ImageCacheManager {
   }
 
   /// 保存本地图片到缓存目录
-  /// 使用 UUID 作为文件名
+  /// 使用 UUID 作为文件名，保留原始文件的扩展名
   Future<String?> saveLocalImage(File imageFile) async {
     try {
       final cacheDir = await _cacheDirectory;
       final uuid = const Uuid().v4();
-      final fileName = '$uuid.jpg';
+      final extension = _extractImageExtension(imageFile.path);
+      final fileName = '$uuid$extension';
       final cachedFile = await imageFile.copy('${cacheDir.path}/$fileName');
 
       debugPrint('✓ 本地图片已缓存: ${cachedFile.path}');

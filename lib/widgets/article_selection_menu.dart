@@ -47,7 +47,7 @@ class ArticleSelectionMenu extends StatelessWidget {
             children: [
               // 取消按钮
               TextButton(onPressed: onCancel, child: const Text('取消')),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
               // 选中数量提示
               Expanded(
                 child: Text(
@@ -57,7 +57,7 @@ class ArticleSelectionMenu extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 8),
               // 全选按钮
               _MenuButton(
                 icon: selectedCount == totalCount

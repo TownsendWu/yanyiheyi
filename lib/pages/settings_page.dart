@@ -6,6 +6,7 @@ import '../providers/activity_provider.dart';
 import '../data/services/article_storage_service.dart';
 import '../data/services/mock_data_service.dart';
 import '../core/services/local_storage_service.dart';
+import '../utils/image_cache_manager.dart';
 
 /// 设置页面
 class SettingsPage extends StatefulWidget {
@@ -17,6 +18,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool _isResetting = false;
+  bool _isClearingCache = false;
 
   Future<void> _resetData() async {
     // 显示确认对话框
@@ -92,6 +94,80 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _clearImageCache() async {
+    // 显示确认对话框
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清除缓存'),
+        content: const Text(
+          '这将清除所有图片缓存文件。\n\n已下载的网络图片和本地图片缓存都会被删除。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.orange,
+            ),
+            child: const Text('清除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() {
+      _isClearingCache = true;
+    });
+
+    try {
+      final cacheManager = ImageCacheManager();
+
+      // 获取清除前的缓存大小
+      final beforeSize = await cacheManager.getCacheSize();
+
+      // 清除缓存
+      await cacheManager.clearCache();
+
+      // 显示成功提示
+      if (mounted) {
+        final sizeText = beforeSize > 0
+            ? '${(beforeSize / 1024 / 1024).toStringAsFixed(2)} MB'
+            : '0 MB';
+
+        Fluttertoast.showToast(
+          msg: '已清除图片缓存 ($sizeText)',
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.CENTER,
+          backgroundColor: Colors.green,
+          textColor: Colors.white,
+        );
+      }
+    } catch (e) {
+      // 显示错误提示
+      if (mounted) {
+        Fluttertoast.showToast(
+          msg: '清除失败: $e',
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.CENTER,
+          backgroundColor: Colors.red,
+          textColor: Colors.white,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isClearingCache = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -128,6 +204,38 @@ class _SettingsPageState extends State<SettingsPage> {
                       )
                     : null,
                 onTap: _isResetting ? null : _resetData,
+              ),
+              _SettingItem(
+                icon: Icons.cleaning_services_outlined,
+                iconColor: Colors.red,
+                title: '清除图片缓存',
+                subtitle: '清除所有图片缓存文件',
+                trailing: _isClearingCache
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : FutureBuilder<String>(
+                        future: _getCacheSize(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            );
+                          }
+                          return Text(
+                            snapshot.data ?? '计算中...',
+                            style: TextStyle(
+                              color: subtitleColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        },
+                      ),
+                onTap: _isClearingCache ? null : _clearImageCache,
               ),
               _SettingItem(
                 icon: Icons.info_outline,
@@ -199,6 +307,21 @@ class _SettingsPageState extends State<SettingsPage> {
       return articles.length;
     } catch (e) {
       return 0;
+    }
+  }
+
+  Future<String> _getCacheSize() async {
+    try {
+      final cacheManager = ImageCacheManager();
+      final sizeInBytes = await cacheManager.getCacheSize();
+      final sizeInMB = sizeInBytes / 1024 / 1024;
+      if (sizeInMB < 1) {
+        final sizeInKB = sizeInBytes / 1024;
+        return '${sizeInKB.toStringAsFixed(1)} KB';
+      }
+      return '${sizeInMB.toStringAsFixed(2)} MB';
+    } catch (e) {
+      return '未知';
     }
   }
 }

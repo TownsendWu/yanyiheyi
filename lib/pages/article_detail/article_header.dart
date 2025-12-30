@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/models/article.dart';
+import '../../utils/string_utils.dart';
 
 /// 文章头部信息组件（标题、日期、标签）
 class ArticleHeader extends StatelessWidget {
@@ -21,7 +22,8 @@ class ArticleHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 20),
+        // 有封面图时留更多空间
+        SizedBox(height: StringUtils.isNotBlank(article.coverImage) ? 20 : 0),
 
         // 标题输入框
         TextField(

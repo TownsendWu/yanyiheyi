@@ -17,8 +17,8 @@ class ActivityProvider extends ChangeNotifier {
     required ApiService apiService,
     bool syncInit = false,
     bool delayInit = false,
-  })  : _articleRepository = ArticleRepository(apiService: apiService),
-        super() {
+  }) : _articleRepository = ArticleRepository(apiService: apiService),
+       super() {
     if (!delayInit) {
       if (syncInit) {
         _initializeDataSync();
@@ -86,9 +86,15 @@ class ActivityProvider extends ChangeNotifier {
   }
 
   /// 更新文章的置顶状态
-  Future<void> updateArticlePinnedStatus(String articleId, bool isPinned) async {
+  Future<void> updateArticlePinnedStatus(
+    String articleId,
+    bool isPinned,
+  ) async {
     // 调用 repository 更新置顶状态（会持久化到 SharedPreferences）
-    final result = await _articleRepository.toggleArticlePin(articleId, isPinned);
+    final result = await _articleRepository.toggleArticlePin(
+      articleId,
+      isPinned,
+    );
 
     if (result.isSuccess) {
       // 更新内存中的文章状态
@@ -116,12 +122,18 @@ class ActivityProvider extends ChangeNotifier {
   }
 
   /// 更新文章的封面图
-  Future<void> updateArticleCoverImage(String articleId, String? coverImage) async {
+  Future<void> updateArticleCoverImage(
+    String articleId,
+    String? coverImage,
+  ) async {
     // 查找文章
     final article = _articles.firstWhere((a) => a.id == articleId);
 
     // 调用 repository 更新文章（会持久化到 SharedPreferences）
-    final updatedArticle = article.copyWith(coverImage: coverImage);
+    final updatedArticle = article.copyWith(
+      coverImage: coverImage,
+      clearCoverImage: coverImage == null,
+    );
     final result = await _articleRepository.updateArticle(updatedArticle);
 
     if (result.isSuccess) {

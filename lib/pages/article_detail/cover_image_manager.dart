@@ -14,7 +14,7 @@ class CoverImageManager {
   final Article article;
   final ImagePicker imagePicker;
   final ImageCacheManager imageCacheManager;
-  final Function(Article) onArticleUpdated;
+  final Function(Article, {String? newImagePath}) onArticleUpdated;
 
   CoverImageManager({
     required this.context,
@@ -85,7 +85,7 @@ class CoverImageManager {
         await activityProvider.updateArticleCoverImage(article.id, cachedPath);
 
         if (context.mounted) {
-          onArticleUpdated(article.copyWith(coverImage: cachedPath));
+          onArticleUpdated(article.copyWith(coverImage: cachedPath), newImagePath: cachedPath);
           AppToast.showSuccess('封面图已更新');
         }
       } else {
@@ -142,7 +142,7 @@ class CoverImageManager {
         await activityProvider.updateArticleCoverImage(article.id, cachedPath);
 
         if (context.mounted) {
-          onArticleUpdated(article.copyWith(coverImage: cachedPath));
+          onArticleUpdated(article.copyWith(coverImage: cachedPath), newImagePath: cachedPath);
           AppToast.showSuccess('封面图已更新');
         }
       } else {
@@ -161,16 +161,23 @@ class CoverImageManager {
   Future<void> _deleteCoverImage() async {
     final activityProvider = context.read<ActivityProvider>();
 
-    // 删除网络图片的缓存（如果原始是 URL）
-    if (article.coverImage != null && article.coverImage!.startsWith('http')) {
-      await imageCacheManager.deleteCachedImage(article.coverImage!);
+    // 删除缓存文件
+    if (article.coverImage != null) {
+      if (article.coverImage!.startsWith('http')) {
+        
+        // 网络图片：删除 URL 对应的缓存
+        await imageCacheManager.deleteCachedImage(article.coverImage!);
+      } else {
+        // 本地图片：删除本地缓存文件
+        await imageCacheManager.deleteCachedFile(article.coverImage!);
+      }
     }
 
     // 更新文章（删除 coverImage）
     await activityProvider.updateArticleCoverImage(article.id, null);
 
     if (context.mounted) {
-      onArticleUpdated(article.copyWith(coverImage: null));
+      onArticleUpdated(article.copyWith(clearCoverImage: true));
       AppToast.showSuccess('封面图已删除');
     }
   }

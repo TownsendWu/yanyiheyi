@@ -64,7 +64,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
   }
 
   /// 更新文章状态
-  void _updateArticle(Article newArticle) {
+  void _updateArticle(Article newArticle, {String? newImagePath}) {
     // 如果置顶状态发生变化，需要同步到 Provider
     if (newArticle.isPinned != _article.isPinned) {
       final activityProvider = context.read<ActivityProvider>();
@@ -74,18 +74,27 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
       );
     }
 
-    // 如果封面图更新了，需要重新加载缓存并同步到 Provider
+    // 如果封面图更新了，需要同步到 Provider
     if (newArticle.coverImage != _article.coverImage) {
       final activityProvider = context.read<ActivityProvider>();
       activityProvider.updateArticleCoverImage(
         newArticle.id,
         newArticle.coverImage,
       );
-      _loadCachedImage();
     }
 
     setState(() {
       _article = newArticle;
+      // 如果有新的图片路径，直接使用（避免异步加载导致延迟显示）
+      if (newImagePath != null) {
+        _cachedImagePath = newImagePath;
+      } else if (newArticle.coverImage == null) {
+        // 删除背景图
+        _cachedImagePath = null;
+      } else if (newArticle.coverImage != _article.coverImage) {
+        // 其他情况（如从 URL 加载），触发异步加载
+        _loadCachedImage();
+      }
     });
   }
 
@@ -95,8 +104,11 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
       return;
     }
 
+    debugPrint('_loadCachedImage: ${_article.coverImage}');
+
     // 在后台执行，避免阻塞主线程
     final cachedPath = await _imageCacheManager.getImage(_article.coverImage!);
+    debugPrint('_loadCachedImage: $cachedPath');
     if (mounted) {
       setState(() {
         _cachedImagePath = cachedPath;
