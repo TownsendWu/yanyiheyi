@@ -50,9 +50,27 @@ class _ArticleListState extends State<ArticleList> {
 
   List<Article> get _sortedArticles {
     final sorted = List<Article>.from(widget.articles);
-    sorted.sort((a, b) => _isNewestFirst
-        ? b.date.compareTo(a.date)
-        : a.date.compareTo(b.date));
+    sorted.sort((a, b) {
+      // 先按置顶状态排序（置顶的在前）
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+
+      // 如果都置顶，按置顶时间倒序（后置顶的在前）
+      if (a.isPinned && b.isPinned) {
+        final aPinnedAt = a.pinnedAt;
+        final bPinnedAt = b.pinnedAt;
+        if (aPinnedAt != null && bPinnedAt != null) {
+          return bPinnedAt.compareTo(aPinnedAt);
+        }
+        if (aPinnedAt != null) return -1;
+        if (bPinnedAt != null) return 1;
+      }
+
+      // 都未置顶或置顶时间相同，按文章日期排序
+      return _isNewestFirst
+          ? b.date.compareTo(a.date)
+          : a.date.compareTo(b.date);
+    });
     return sorted;
   }
 
@@ -415,19 +433,39 @@ class _ArticleListItem extends StatelessWidget {
                 const SizedBox(width: 8),
                 // 文章标题（带下划线）
                 Expanded(
-                  child: Text(
-                    article.title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: isVisited
-                          ? theme.colorScheme.onSurface.withValues(alpha: 0.5)
-                          : theme.colorScheme.onSurface.withValues(alpha: 0.8),
-                      decoration: TextDecoration.underline,
-                      decorationColor:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
+                  child: Row(
+                    children: [
+                      // 置顶图标
+                      if (article.isPinned) ...[
+                        Icon(
+                          Icons.push_pin,
+                          size: 14,
+                          color: theme.brightness == Brightness.dark
+                              ? AppColors.primaryDark
+                              : AppColors.articleListTitleLight,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      // 标题
+                      Flexible(
+                        child: Text(
+                          article.title,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: isVisited
+                                ? theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.5)
+                                : theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.8),
+                            decoration: TextDecoration.underline,
+                            decorationColor: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.5),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -604,18 +642,36 @@ class _ArticleCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 标题
-                Text(
-                  article.title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: isVisited
-                        ? theme.colorScheme.onSurface.withValues(alpha: 0.5)
-                        : theme.colorScheme.onSurface,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                // 标题行（包含置顶图标）
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 标题
+                    Expanded(
+                      child: Text(
+                        article.title,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: isVisited
+                              ? theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.5)
+                              : theme.colorScheme.onSurface,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    // 置顶图标（右上角）
+                    if (article.isPinned)
+                      Icon(
+                        Icons.push_pin,
+                        size: 14,
+                        color: theme.brightness == Brightness.dark
+                            ? AppColors.primaryDark
+                            : AppColors.articleListTitleLight,
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 // 日期

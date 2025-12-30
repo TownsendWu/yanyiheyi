@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/user_provider.dart';
 import 'theme_mode_button.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -18,7 +20,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
       leading: null,
-      title: const _LogoWithAnimation(),
+      title: const _LogoWithNickname(),
       centerTitle: false,
       actions: [
         IconButton(
@@ -31,16 +33,67 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         ThemeModeButton(
           themeController: themeController,
         ),
-        IconButton(
-          onPressed: onMenuPressed,
-          icon: const Icon(Icons.account_circle),
-        ),
+        // 用户头像按钮
+        _UserAvatarButton(onMenuPressed: onMenuPressed),
       ],
     );
   }
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+}
+
+class _LogoWithNickname extends StatelessWidget {
+  const _LogoWithNickname();
+
+  @override
+  Widget build(BuildContext context) {
+    final userProvider = context.watch<UserProvider>();
+    final userProfile = userProvider.userProfile;
+
+    return Row(
+      children: [
+        const _LogoWithAnimation(),
+        const SizedBox(width: 8),
+        Text(
+          userProfile.nickname,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _UserAvatarButton extends StatelessWidget {
+  final VoidCallback onMenuPressed;
+
+  const _UserAvatarButton({required this.onMenuPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final userProvider = context.watch<UserProvider>();
+    final userProfile = userProvider.userProfile;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: IconButton(
+        onPressed: onMenuPressed,
+        icon: CircleAvatar(
+          radius: 16,
+          backgroundColor: Colors.transparent,
+          backgroundImage: userProfile.avatar != null
+              ? NetworkImage(userProfile.avatar!)
+              : null,
+          child: userProfile.avatar == null
+              ? const Icon(Icons.person, size: 20, color: Colors.grey)
+              : null,
+        ),
+      ),
+    );
+  }
 }
 
 class _LogoWithAnimation extends StatefulWidget {
@@ -76,55 +129,43 @@ class _LogoWithAnimationState extends State<_LogoWithAnimation>
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        GestureDetector(
-          onTap: _handleTap,
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              // 轻微颤抖效果
-              final progress = _controller.value;
-              double rotation = 0;
+    return GestureDetector(
+      onTap: _handleTap,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          // 轻微颤抖效果
+          final progress = _controller.value;
+          double rotation = 0;
 
-              if (progress < 0.2) {
-                // 向右微转
-                rotation = progress * 5 * 0.08;
-              } else if (progress < 0.4) {
-                // 向左微转
-                rotation = 0.08 - (progress - 0.2) * 5 * 0.16;
-              } else if (progress < 0.6) {
-                // 向右微转
-                rotation = -0.08 + (progress - 0.4) * 5 * 0.16;
-              } else if (progress < 0.8) {
-                // 向左微转
-                rotation = 0.08 - (progress - 0.6) * 5 * 0.16;
-              } else {
-                // 回到中心
-                rotation = -0.08 + (progress - 0.8) * 5 * 0.08;
-              }
+          if (progress < 0.2) {
+            // 向右微转
+            rotation = progress * 5 * 0.08;
+          } else if (progress < 0.4) {
+            // 向左微转
+            rotation = 0.08 - (progress - 0.2) * 5 * 0.16;
+          } else if (progress < 0.6) {
+            // 向右微转
+            rotation = -0.08 + (progress - 0.4) * 5 * 0.16;
+          } else if (progress < 0.8) {
+            // 向左微转
+            rotation = 0.08 - (progress - 0.6) * 5 * 0.16;
+          } else {
+            // 回到中心
+            rotation = -0.08 + (progress - 0.8) * 5 * 0.08;
+          }
 
-              return Transform.rotate(
-                angle: rotation,
-                child: child,
-              );
-            },
-            child: SvgPicture.asset(
-              'lib/assets/icon.svg',
-              width: 32,
-              height: 32,
-            ),
-          ),
+          return Transform.rotate(
+            angle: rotation,
+            child: child,
+          );
+        },
+        child: SvgPicture.asset(
+          'lib/assets/icon.svg',
+          width: 32,
+          height: 32,
         ),
-        const SizedBox(width: 2),
-        const Text(
-          '扭动的妖怪蝙蝠',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../data/models/article.dart';
+import '../../providers/activity_provider.dart';
 
 /// 文章详情页 (Notion 风格)
 class ArticleDetailPage extends StatefulWidget {
@@ -13,7 +15,7 @@ class ArticleDetailPage extends StatefulWidget {
 
 class _ArticleDetailPageState extends State<ArticleDetailPage> {
   late TextEditingController _titleController;
-  late final Article _article;
+  late Article _article;
   final FocusNode _titleFocusNode = FocusNode();
 
   @override
@@ -28,6 +30,155 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     _titleController.dispose();
     _titleFocusNode.dispose();
     super.dispose();
+  }
+
+  /// 切换置顶状态
+  Future<void> _togglePin() async {
+    final activityProvider = context.read<ActivityProvider>();
+    final newPinnedStatus = !_article.isPinned;
+
+    await activityProvider.updateArticlePinnedStatus(_article.id, newPinnedStatus);
+
+    setState(() {
+      _article = _article.copyWith(
+        isPinned: newPinnedStatus,
+        pinnedAt: newPinnedStatus ? DateTime.now() : null,
+      );
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(newPinnedStatus ? '已置顶' : '已取消置顶'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  /// 显示更多选项菜单
+  void _showMoreMenu(BuildContext context) {
+    final theme = Theme.of(context);
+    final isPinned = _article.isPinned;
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        MediaQuery.of(context).size.width - 120,
+        kToolbarHeight + MediaQuery.of(context).padding.top,
+        MediaQuery.of(context).size.width,
+        kToolbarHeight + MediaQuery.of(context).padding.top + 200,
+      ),
+      items: [
+        PopupMenuItem<String>(
+          value: 'generate_card',
+          child: Row(
+            children: [
+              Icon(
+                Icons.style_outlined,
+                size: 20,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '生成文字卡片',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'add_tag',
+          child: Row(
+            children: [
+              Icon(
+                Icons.label_outline,
+                size: 20,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '添加标签',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'pin',
+          child: Row(
+            children: [
+              Icon(
+                isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                size: 20,
+                color: isPinned
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                isPinned ? '取消置顶' : '置顶',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(
+                Icons.delete_outline,
+                size: 20,
+                color: theme.colorScheme.error.withValues(alpha: 0.8),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '删除',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: theme.colorScheme.error.withValues(alpha: 0.8),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value != null) {
+        _handleMenuAction(value);
+      }
+    });
+  }
+
+  /// 处理菜单选项点击
+  void _handleMenuAction(String action) {
+    switch (action) {
+      case 'generate_card':
+        // TODO: 实现生成文字卡片功能
+        print('生成文字卡片');
+        break;
+      case 'add_tag':
+        // TODO: 实现添加标签功能
+        print('添加标签');
+        break;
+      case 'pin':
+        _togglePin();
+        break;
+      case 'delete':
+        // TODO: 实现删除功能
+        print('删除');
+        break;
+    }
   }
 
   @override
@@ -70,9 +221,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     size: 24,
                   ),
-                  onPressed: () {
-                    // TODO: 显示更多选项菜单
-                  },
+                  onPressed: () => _showMoreMenu(context),
                   padding: const EdgeInsets.only(right: 16),
                   constraints: const BoxConstraints(
                     minWidth: 40,

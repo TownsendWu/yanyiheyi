@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../core/theme/app_colors.dart';
+import '../data/models/user_profile.dart';
+import '../providers/user_provider.dart';
+import '../presentation/pages/user_profile_edit_page.dart';
+import '../presentation/pages/help_and_feedback_page.dart';
+import '../presentation/pages/about_page.dart';
 
 /// 侧边菜单的内容组件
 ///
@@ -76,18 +82,26 @@ class MenuContent extends StatelessWidget {
                     icon: Icons.help_outline,
                     title: '帮助与反馈',
                     subtitle: '使用帮助和问题反馈',
-                    onTap: () {
-                      Navigator.pop(context);
-                      print('打开帮助与反馈');
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const HelpAndFeedbackPage(),
+                        ),
+                      );
                     },
                   ),
                   _MenuItem(
                     icon: Icons.info_outline,
                     title: '关于',
                     subtitle: '应用信息和版本',
-                    onTap: () {
-                      Navigator.pop(context);
-                      print('打开关于');
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AboutPage(),
+                        ),
+                      );
                     },
                   ),
                 ],
@@ -106,6 +120,9 @@ class MenuContent extends StatelessWidget {
 class _UserInfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final userProvider = context.watch<UserProvider>();
+    final userProfile = userProvider.userProfile;
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor =
         isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
@@ -113,59 +130,82 @@ class _UserInfoSection extends StatelessWidget {
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(5, 40, 0, 20),
-      // decoration: BoxDecoration(
-      //   border: Border(
-      //     bottom: BorderSide(
-      //       color: subtitleColor.withValues(alpha: 0.1),
-      //       width: 1,
-      //     ),
-      //   ),
-      // ),
-      child: Row(
-        children: [
-          // 头像
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: isDark
-                ? AppColors.primaryDark
-                : AppColors.primary,
-            child: const Icon(
-              Icons.person,
-              size: 28,
-              color: Colors.white,
+    return InkWell(
+      onTap: () async {
+        // 跳转到用户信息编辑页面
+        final updatedProfile = await Navigator.push<UserProfile>(
+          context,
+          MaterialPageRoute(
+            builder: (context) => UserProfileEditPage(
+              initialProfile: userProfile,
             ),
           ),
-          const SizedBox(width: 16),
-          // 用户名和签名
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 用户名
-                Text(
-                  '扭动的妖怪蝙蝠',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // 签名
-                Text(
-                  '记录生活，分享思考',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: subtitleColor,
-                  ),
-                ),
-              ],
+        );
+
+        // 如果用户修改了信息，更新全局状态
+        if (updatedProfile != null) {
+          userProvider.updateUserProfile(updatedProfile);
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(5, 40, 0, 20),
+        // decoration: BoxDecoration(
+        //   border: Border(
+        //     bottom: BorderSide(
+        //       color: subtitleColor.withValues(alpha: 0.1),
+        //       width: 1,
+        //     ),
+        //   ),
+        // ),
+        child: Row(
+          children: [
+            // 头像
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: isDark
+                  ? AppColors.primaryDark
+                  : AppColors.primary,
+              backgroundImage: userProfile.avatar != null
+                  ? NetworkImage(userProfile.avatar!)
+                  : null,
+              child: userProfile.avatar == null
+                  ? const Icon(
+                      Icons.person,
+                      size: 28,
+                      color: Colors.white,
+                    )
+                  : null,
             ),
-          ),
-        ],
+            const SizedBox(width: 16),
+            // 用户名和签名
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 用户名
+                  Text(
+                    userProfile.nickname,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // 签名
+                  Text(
+                    userProfile.bio ?? '',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: subtitleColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

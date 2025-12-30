@@ -8,6 +8,8 @@ class Article {
   final String? content;
   final String? coverImage; // 封面图片 URL
   final List<String> tags; // 标签列表
+  final bool isPinned; // 是否置顶
+  final DateTime? pinnedAt; // 置顶时间
 
   Article({
     required this.id,
@@ -16,6 +18,8 @@ class Article {
     this.content,
     this.coverImage,
     List<String>? tags,
+    this.isPinned = false,
+    this.pinnedAt,
   }) : tags = tags ?? [];
 
   /// 格式化日期字符串 (到分钟)
@@ -44,6 +48,10 @@ class Article {
               ?.map((e) => e as String)
               .toList() ??
           [],
+      isPinned: json['isPinned'] as bool? ?? false,
+      pinnedAt: json['pinnedAt'] != null
+          ? DateTime.parse(json['pinnedAt'] as String)
+          : null,
     );
   }
 
@@ -56,6 +64,8 @@ class Article {
       'content': content,
       'coverImage': coverImage,
       'tags': tags,
+      'isPinned': isPinned,
+      'pinnedAt': pinnedAt?.toIso8601String(),
     };
   }
 
@@ -67,6 +77,8 @@ class Article {
     String? content,
     String? coverImage,
     List<String>? tags,
+    bool? isPinned,
+    DateTime? pinnedAt,
   }) {
     return Article(
       id: id ?? this.id,
@@ -75,6 +87,8 @@ class Article {
       content: content ?? this.content,
       coverImage: coverImage ?? this.coverImage,
       tags: tags ?? this.tags,
+      isPinned: isPinned ?? this.isPinned,
+      pinnedAt: pinnedAt ?? this.pinnedAt,
     );
   }
 }
