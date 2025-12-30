@@ -65,14 +65,28 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
 
   /// 更新文章状态
   void _updateArticle(Article newArticle) {
+    // 如果置顶状态发生变化，需要同步到 Provider
+    if (newArticle.isPinned != _article.isPinned) {
+      final activityProvider = context.read<ActivityProvider>();
+      activityProvider.updateArticlePinnedStatus(
+        newArticle.id,
+        newArticle.isPinned,
+      );
+    }
+
+    // 如果封面图更新了，需要重新加载缓存并同步到 Provider
+    if (newArticle.coverImage != _article.coverImage) {
+      final activityProvider = context.read<ActivityProvider>();
+      activityProvider.updateArticleCoverImage(
+        newArticle.id,
+        newArticle.coverImage,
+      );
+      _loadCachedImage();
+    }
+
     setState(() {
       _article = newArticle;
     });
-
-    // 如果封面图更新了，需要重新加载缓存
-    if (newArticle.coverImage != _article.coverImage) {
-      _loadCachedImage();
-    }
   }
 
   /// 加载缓存的图片

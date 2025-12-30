@@ -35,15 +35,17 @@ class ArticleAppBar extends StatelessWidget {
         constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
       ),
       actions: [
-        IconButton(
-          icon: Icon(
-            Icons.more_horiz,
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            size: 24,
+        GestureDetector(
+          onTap: onMenuPress,
+          child: Container(
+            padding: const EdgeInsets.only(right: 16),
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            child: Icon(
+              Icons.more_horiz,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              size: 24,
+            ),
           ),
-          onPressed: onMenuPress,
-          padding: const EdgeInsets.only(right: 16),
-          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
         ),
       ],
       flexibleSpace: cachedImagePath != null
