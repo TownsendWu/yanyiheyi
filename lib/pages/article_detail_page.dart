@@ -7,6 +7,7 @@ import '../widgets/app_toast.dart';
 import '../utils/image_cache_manager.dart';
 import 'article_detail/article_app_bar.dart';
 import 'article_detail/article_header.dart';
+import 'article_detail/article_content.dart';
 import 'article_detail/cover_image_manager.dart';
 import 'article_detail/article_menu_manager.dart';
 
@@ -150,10 +151,17 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20.0),
-            child: ArticleHeader(
-              article: _article,
-              titleController: _titleController,
-              titleFocusNode: _titleFocusNode,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ArticleHeader(
+                  article: _article,
+                  titleController: _titleController,
+                  titleFocusNode: _titleFocusNode,
+                ),
+                ArticleContent(content: _article.content),
+                const SizedBox(height: 80),
+              ],
             ),
           ),
         ),

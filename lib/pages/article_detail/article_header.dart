@@ -86,19 +86,6 @@ class ArticleHeader extends StatelessWidget {
           _TagsSection(tags: article.tags),
           const SizedBox(height: 30),
         ],
-
-        // 文章内容
-        Text(
-          article.content ?? '暂无内容',
-          style: TextStyle(
-            fontSize: 16,
-            height: 1.8,
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
-            letterSpacing: 0.3,
-          ),
-        ),
-
-        const SizedBox(height: 80),
       ],
     );
   }
