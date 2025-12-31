@@ -24,6 +24,7 @@ class ArticleDetailPage extends StatefulWidget {
 class _ArticleDetailPageState extends State<ArticleDetailPage> {
 final ScrollController _scrollController = ScrollController();
   final GlobalKey _key = GlobalKey();
+  final GlobalKey<ArticleContentState> _articleContentKey = GlobalKey<ArticleContentState>();
   double? height;
 
   late TextEditingController _titleController;
@@ -65,17 +66,7 @@ final ScrollController _scrollController = ScrollController();
     // 初始化时加载缓存图片（延迟执行，避免阻塞启动）
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCachedImage();
-      _getHeight();
     });
-  }
-
-  void _getHeight() {
-    final RenderBox renderBox =
-        _key.currentContext?.findRenderObject() as RenderBox;
-    setState(() {
-      height = renderBox.size.height;
-    });
-    print('组件高度: $height');
   }
 
   /// 更新文章状态
@@ -151,10 +142,6 @@ final ScrollController _scrollController = ScrollController();
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // 打印页面高度
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
-    debugPrint('页面高度: $screenHeight, 宽度: $screenWidth');
 
     // 构建主体内容（CustomScrollView）
     // 这里定义了一个自定义滚动
@@ -180,7 +167,11 @@ final ScrollController _scrollController = ScrollController();
                     titleController: _titleController,
                     titleFocusNode: _titleFocusNode,
                   ),
-                  ArticleContent(content: _article.content,scrollController: _scrollController,),
+                  ArticleContent(
+                    key: _articleContentKey,
+                    content: _article.content,
+                    scrollController: _scrollController,
+                  ),
                   const SizedBox(height: 20),
                 ],
               ),

@@ -60,11 +60,7 @@ class ActivityProvider extends ChangeNotifier {
 
     if (result.isSuccess && result.getData != null) {
       _articles = result.getData!;
-      // 根据真实文章数据生成活动数据
-      print('ActivityProvider: 成功加载 ${_articles.length} 篇文章');
       _activities = MockDataService.generateActivityDataFromArticles(_articles);
-      print('ActivityProvider: 生成了 ${_activities.length} 条活动数据');
-      print('ActivityProvider: 总文章数 = ${totalCount}');
     } else {
       // 如果加载失败，使用 mock 数据
       print('ActivityProvider: 加载失败，使用 mock 数据');

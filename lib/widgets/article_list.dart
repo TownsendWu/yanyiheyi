@@ -447,7 +447,7 @@ class _ArticleListItem extends StatelessWidget {
                     child: Text(
                       article.formattedShortDate,
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: 16,
                         color: theme.colorScheme.onSurface.withValues(
                           alpha: 0.8,
                         ),
@@ -462,7 +462,7 @@ class _ArticleListItem extends StatelessWidget {
                         if (article.isPinned) ...[
                           Icon(
                             Icons.push_pin,
-                            size: 14,
+                            size: 16,
                             color: theme.brightness == Brightness.dark
                                 ? AppColors.primaryDark
                                 : AppColors.articleListTitleLight,

@@ -23,7 +23,6 @@
 // }
 
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
@@ -45,17 +44,56 @@ class ArticleContent extends StatefulWidget {
   });
 
   @override
-  State<ArticleContent> createState() => _ArticleContentState();
+  State<ArticleContent> createState() => ArticleContentState();
 }
 
-class _ArticleContentState extends State<ArticleContent> {
+class ArticleContentState extends State<ArticleContent> {
   late final QuillController _controller;
   final FocusNode _focusNode = FocusNode();
+  final GlobalKey _quillEditorKey = GlobalKey();
+
+  // 存储当前光标位置
+  Offset? _currentCursorPosition;
 
   @override
   void initState() {
     super.initState();
     _initController();
+
+    // 监听 selection 变化
+    _controller.addListener(_onSelectionChanged);
+
+    // 监听焦点变化
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  /// 监听焦点变化
+  void _onFocusChanged() {
+    if (_focusNode.hasFocus) {
+      // 获得焦点时，延迟获取光标位置
+      Future.delayed(const Duration(milliseconds: 100), () {
+        final position = _getCursorPosition();
+        if (position != null) {
+          debugPrint('焦点获得 - 光标位置: ${position.dx}, ${position.dy}');
+        } else {
+          debugPrint('焦点获得 - 无法获取光标位置');
+        }
+      });
+    } else {
+      debugPrint('焦点失去');
+    }
+  }
+
+  /// 监听光标位置变化
+  void _onSelectionChanged() {
+    if (_controller.selection.isCollapsed) {
+      // 光标移动时更新位置
+      Future.delayed(const Duration(milliseconds: 50), () {
+        setState(() {
+          _currentCursorPosition = _getCursorPosition();
+        });
+      });
+    }
   }
 
   void _initController() {
@@ -82,8 +120,89 @@ class _ArticleContentState extends State<ArticleContent> {
     );
   }
 
+  /// 获取光标的物理位置（屏幕坐标）
+  Offset? _getCursorPosition() {
+    // 访问 QuillEditor 的 EditorState
+    final editorState = _quillEditorKey.currentState;
+    if (editorState == null) {
+      debugPrint('EditorState is null');
+      return null;
+    }
+
+    // 获取当前选择范围
+    final selection = _controller.selection;
+    if (!selection.isCollapsed) {
+      return null; // 只处理光标（非选中范围）
+    }
+
+    try {
+      // 通过 EditorState 访问内部的 RenderEditor
+      // RenderEditor 有 getLocalRectForCaret 方法
+      final context = editorState.context;
+      final renderObject = context.findRenderObject();
+      if (renderObject == null) {
+        debugPrint('RenderObject is null');
+        return null;
+      }
+
+      // 获取光标的本地坐标 Rect
+      // 需要访问 RenderEditor 实例
+      final TextPosition textPosition = TextPosition(
+        offset: selection.baseOffset,
+        affinity: selection.affinity,
+      );
+
+      // 由于 getLocalRectForCaret 是 RenderEditor 的方法
+      // 我们需要通过其他方式访问
+      // 使用 TextPainter 来计算光标位置
+      final plainText = _controller.document.toPlainText();
+
+      if (plainText.isEmpty) {
+        return null;
+      }
+
+      // 创建 TextPainter 来计算光标位置
+      final textPainter = TextPainter(
+        text: TextSpan(text: plainText),
+        textDirection: TextDirection.ltr,
+        textAlign: TextAlign.start,
+      );
+
+      textPainter.layout(maxWidth: renderObject.paintBounds.width);
+
+      // 获取光标位置的偏移
+      final offset = textPainter.getOffsetForCaret(
+        textPosition,
+        Rect.zero,
+      );
+
+      // 将本地偏移转换为全局坐标
+      // 这里我们简化处理，返回编辑器的左上角加上计算出的偏移
+      if (renderObject is RenderBox) {
+        final renderBox = renderObject;
+        final localPosition = offset;
+        final globalPosition = renderBox.localToGlobal(localPosition);
+
+        debugPrint('光标位置: ${globalPosition.dx}, ${globalPosition.dy}');
+        return globalPosition;
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('Error getting cursor position: $e');
+      return null;
+    }
+  }
+
+  /// 公开方法：获取当前光标位置
+  Offset? getCursorPosition() {
+    return _currentCursorPosition;
+  }
+
   @override
   void dispose() {
+    _controller.removeListener(_onSelectionChanged);
+    _focusNode.removeListener(_onFocusChanged);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -97,6 +216,7 @@ class _ArticleContentState extends State<ArticleContent> {
     return Padding(
       padding: EdgeInsetsGeometry.only(top: 0.0),
       child: QuillEditor(
+        key: _quillEditorKey,
         focusNode: _focusNode,
         scrollController: widget.scrollController,
         controller: _controller,

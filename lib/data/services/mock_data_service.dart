@@ -126,12 +126,6 @@ class MockDataService {
       final dateStr = DateFormat('yyyy-MM-dd').format(article.date);
       dateCountMap[dateStr] = (dateCountMap[dateStr] ?? 0) + 1;
     }
-
-    print('MockDataService: 统计到 ${dateCountMap.length} 个不同的日期有文章');
-    dateCountMap.forEach((date, count) {
-      print('  $date: $count 篇');
-    });
-
     // 生成 ActivityData 列表
     final activityDataList = <ActivityData>[];
     final now = DateTime.now();
@@ -151,8 +145,6 @@ class MockDataService {
     }
 
     // 统计有文章的天数
-    final daysWithArticles = activityDataList.where((a) => a.count > 0).length;
-    print('MockDataService: 在过去 ${AppConstants.dataDays} 天中有 $daysWithArticles 天有文章');
 
     return activityDataList;
   }
