@@ -160,6 +160,15 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
       ],
     );
 
-    return Scaffold(backgroundColor: theme.scaffoldBackgroundColor, body: body);
+    return GestureDetector(
+      // 点击空白区域时取消焦点
+      onTap: () {
+        _titleFocusNode.unfocus();
+      },
+      child: Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: body,
+      ),
+    );
   }
 }

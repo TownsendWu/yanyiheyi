@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'dart:io';
 import '../../data/models/article.dart';
 import '../../providers/activity_provider.dart';
 import '../../utils/image_cache_manager.dart';
 import '../../widgets/app_toast.dart';
+import '../../core/theme/app_colors.dart';
 import 'bottom_sheet_menu.dart';
 
 /// 封面图管理器
@@ -76,8 +78,12 @@ class CoverImageManager {
 
       if (image == null) return;
 
-      // 将图片保存到缓存目录
-      final imageFile = File(image.path);
+      // 裁切图片
+      final croppedFile = await _cropImage(image.path);
+      if (croppedFile == null) return;
+
+      // 保存裁切后的图片
+      final imageFile = File(croppedFile.path);
       final cachedPath = await imageCacheManager.saveLocalImage(imageFile);
 
       if (cachedPath != null) {
@@ -93,10 +99,92 @@ class CoverImageManager {
           AppToast.showError('保存图片失败');
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('选择图片失败: $e');
+      debugPrint('堆栈跟踪: $stackTrace');
       if (context.mounted) {
-        AppToast.showError('选择图片失败: $e');
+        AppToast.showError('选择图片失败: ${e.toString()}');
       }
+    }
+  }
+
+  /// 裁切图片
+  /// 使用固定高度120的裁切框
+  Future<CroppedFile?> _cropImage(String sourcePath) async {
+    // 获取屏幕宽度
+    final screenWidth = MediaQuery.of(context).size.width;
+    const coverHeight = 200.0;
+
+    // 计算宽高比（宽度 : 高度），转换为 x:y 格式
+    // 例如：屏幕宽度 390，高度 120，比例 = 390/120 = 3.25 = 13:4
+    final aspectRatio = screenWidth / coverHeight;
+
+    // 将比例转换为整数形式（避免精度问题）
+    // 使用 10 作为基数来避免小数
+    final ratioX = screenWidth * 10;
+    final ratioY = coverHeight * 10;
+
+    debugPrint('屏幕宽度: $screenWidth, 封面高度: $coverHeight, 宽高比: $aspectRatio ($ratioX:$ratioY)');
+
+    // 获取当前主题
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    try {
+      final croppedFile = await ImageCropper().cropImage(
+        sourcePath: sourcePath,
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 90,
+        aspectRatio: CropAspectRatio(ratioX: ratioX, ratioY: ratioY),
+        uiSettings: [
+          // Android 样式配置
+          AndroidUiSettings(
+            // 工具栏
+            // toolbarTitle: '裁切封面图',
+            // toolbarColor: AppColors.primary,
+            // toolbarWidgetColor: Colors.white,
+
+            // 裁切框样式
+            backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
+            activeControlsWidgetColor: AppColors.primary,
+
+            // 裁切网格和边框
+            showCropGrid: false,
+            cropFrameColor: AppColors.primary,
+
+            // 宽高比锁定
+            initAspectRatio: CropAspectRatioPreset.original,
+            lockAspectRatio: true,
+
+            // 底部控件
+            hideBottomControls: false,
+          ),
+
+          // iOS 样式配置
+          IOSUiSettings(
+            title: '裁切封面图',
+            doneButtonTitle: '完成',
+            cancelButtonTitle: '取消',
+
+            // 宽高比
+            aspectRatioLockEnabled: true,
+            resetAspectRatioEnabled: false,
+            aspectRatioPickerButtonHidden: true,
+
+            // 样式
+            rotateButtonsHidden: true, // 隐藏旋转按钮
+            showCancelConfirmationDialog: true, // 取消时显示确认对话框
+          ),
+        ],
+      );
+
+      return croppedFile;
+    } catch (e) {
+      debugPrint('裁切图片失败: $e');
+      if (context.mounted) {
+        AppToast.showError('裁切图片失败: $e');
+      }
+      return null;
     }
   }
 

@@ -189,20 +189,20 @@ class _HomePageState extends State<HomePage> {
                     offsetFromRight: 18,
                     items: [
                       FABItem(
+                        icon: Icons.edit_note,
+                        onPressed: () => print('辅助模式'),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        iconColor: Colors.white,
+                      ),
+                      FABItem(
+                        icon: Icons.psychology,
+                        onPressed: () => print('深度模式'),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        iconColor: Colors.white,
+                      ),
+                      FABItem(
                         icon: Icons.edit,
-                        onPressed: () => print('新建文章'),
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        iconColor: Colors.white,
-                      ),
-                      FABItem(
-                        icon: Icons.photo_camera,
-                        onPressed: () => print('拍照记录'),
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        iconColor: Colors.white,
-                      ),
-                      FABItem(
-                        icon: Icons.mic,
-                        onPressed: () => print('语音记录'),
+                        onPressed: () => print('纯净模式'),
                         backgroundColor: Theme.of(context).colorScheme.primary,
                         iconColor: Colors.white,
                       ),

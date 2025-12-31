@@ -19,7 +19,7 @@ class ArticleAppBar extends StatelessWidget {
     final theme = Theme.of(context);
 
     return SliverAppBar(
-      expandedHeight: cachedImagePath != null ? 100 : 0,
+      expandedHeight: cachedImagePath != null ? 120 : 0,
       pinned: true,
       floating: false,
       backgroundColor: theme.scaffoldBackgroundColor,
