@@ -22,6 +22,7 @@ class ArticleDetailPage extends StatefulWidget {
 }
 
 class _ArticleDetailPageState extends State<ArticleDetailPage> {
+final ScrollController _scrollController = ScrollController();
   final GlobalKey _key = GlobalKey();
   double? height;
 
@@ -69,7 +70,8 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
   }
 
   void _getHeight() {
-    final RenderBox renderBox = _key.currentContext?.findRenderObject() as RenderBox;
+    final RenderBox renderBox =
+        _key.currentContext?.findRenderObject() as RenderBox;
     setState(() {
       height = renderBox.size.height;
     });
@@ -142,6 +144,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
   void dispose() {
     _titleController.dispose();
     _titleFocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -156,9 +159,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     // 构建主体内容（CustomScrollView）
     // 这里定义了一个自定义滚动
     final body = CustomScrollView(
+      controller: _scrollController,
       slivers: [
         // App Bar with back button and more options
-        // 这是AppBart
         ArticleAppBar(
           cachedImagePath: _cachedImagePath,
           onBackPress: () => Navigator.pop(context),
@@ -166,26 +169,23 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
         ),
 
         // 内容区域
-        SliverFillRemaining(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
-            // 这里用了一个Column组件
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 这应该是顶部的图片
-                ArticleHeader(
-                  article: _article,
-                  titleController: _titleController,
-                  titleFocusNode: _titleFocusNode,
-                ),
-                // 这个是内容
-                ArticleContent(content: _article.content),
-                const SizedBox(height: 20),
-              ],
+        SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ArticleHeader(
+                    article: _article,
+                    titleController: _titleController,
+                    titleFocusNode: _titleFocusNode,
+                  ),
+                  ArticleContent(content: _article.content,scrollController: _scrollController,),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           ),
-        ),
       ],
     );
 

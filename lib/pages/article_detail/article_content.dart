@@ -23,9 +23,10 @@
 // }
 
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
-import './artic_content_editor.dart';
+import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 
 // 假设 MyQuillEditor 定义在同文件或已导入
 // import 'path/to/my_quill_editor.dart';
@@ -33,11 +34,13 @@ import './artic_content_editor.dart';
 class ArticleContent extends StatefulWidget {
   // 这里的 content 应当是 Quill 的 JSON Delta 字符串
   final String? content;
+  final ScrollController scrollController;
   final bool readOnly; // 可选：通常展示文章内容时可能是只读的
 
   const ArticleContent({
     super.key,
     required this.content,
+    required this.scrollController,
     this.readOnly = false,
   });
 
@@ -48,7 +51,6 @@ class ArticleContent extends StatefulWidget {
 class _ArticleContentState extends State<ArticleContent> {
   late final QuillController _controller;
   final FocusNode _focusNode = FocusNode();
-  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -84,21 +86,158 @@ class _ArticleContentState extends State<ArticleContent> {
   void dispose() {
     _controller.dispose();
     _focusNode.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 这里使用一个固定高度的盒子，导致页面往上推的时候压缩不了，应该使用Expanded
-    // 但是使用Expanded时 父容器要是一个有限高度的容量，也就是外层Column
-    // 但是外层的Column 又是在一个滚动组件内，高度无法确定，导致无法使用Expanded
-    return Expanded(
-      child: MyQuillEditor(
-        controller: _controller,
+    final theme = Theme.of(context);
+    final defaultTextStyle = DefaultTextStyle.of(context);
+
+    return Padding(
+      padding: EdgeInsetsGeometry.only(top: 0.0),
+      child: QuillEditor(
         focusNode: _focusNode,
-        scrollController: _scrollController,
+        scrollController: widget.scrollController,
+        controller: _controller,
+        config: QuillEditorConfig(
+          scrollable: false,
+          padding: EdgeInsetsGeometry.only(bottom: 20),
+          placeholder: 'Start writing your notes...',
+          customStyles: DefaultStyles(
+            paragraph: DefaultTextBlockStyle(
+              defaultTextStyle.style.copyWith(
+                fontSize: 16,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
+              ),
+              const HorizontalSpacing(0, 0),
+              const VerticalSpacing(0, 0),
+              const VerticalSpacing(0, 0),
+              null,
+            ),
+            h1: DefaultTextBlockStyle(
+              defaultTextStyle.style.copyWith(
+                fontSize: 32,
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.bold,
+                height: 1.3,
+              ),
+              const HorizontalSpacing(0, 0),
+              const VerticalSpacing(16, 8),
+              const VerticalSpacing(0, 0),
+              null,
+            ),
+            h2: DefaultTextBlockStyle(
+              defaultTextStyle.style.copyWith(
+                fontSize: 24,
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.bold,
+                height: 1.3,
+              ),
+              const HorizontalSpacing(0, 0),
+              const VerticalSpacing(8, 4),
+              const VerticalSpacing(0, 0),
+              null,
+            ),
+            h3: DefaultTextBlockStyle(
+              defaultTextStyle.style.copyWith(
+                fontSize: 20,
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.bold,
+                height: 1.3,
+              ),
+              const HorizontalSpacing(0, 0),
+              const VerticalSpacing(8, 4),
+              const VerticalSpacing(0, 0),
+              null,
+            ),
+            lists: DefaultListBlockStyle(
+              defaultTextStyle.style.copyWith(
+                fontSize: 16,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
+                height: 1.8,
+              ),
+              const HorizontalSpacing(0, 0),
+              const VerticalSpacing(0, 4),
+              const VerticalSpacing(0, 0),
+              null,
+              null,
+            ),
+            quote: DefaultTextBlockStyle(
+              defaultTextStyle.style.copyWith(
+                fontSize: 16,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                fontStyle: FontStyle.italic,
+              ),
+              const HorizontalSpacing(0, 0),
+              const VerticalSpacing(8, 4),
+              const VerticalSpacing(0, 0),
+              null,
+            ),
+            code: DefaultTextBlockStyle(
+              defaultTextStyle.style.copyWith(
+                fontSize: 14,
+                color: theme.colorScheme.onSurface,
+                fontFamily: 'monospace',
+                backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              ),
+              const HorizontalSpacing(0, 0),
+              const VerticalSpacing(8, 4),
+              const VerticalSpacing(0, 0),
+              null,
+            ),
+          ),
+          embedBuilders: [
+            ...FlutterQuillEmbeds.editorBuilders(
+              imageEmbedConfig: QuillEditorImageEmbedConfig(
+                imageProviderBuilder: (context, imageUrl) {
+                  if (imageUrl.startsWith('assets/')) {
+                    return AssetImage(imageUrl);
+                  }
+                  return null;
+                },
+              ),
+              videoEmbedConfig: QuillEditorVideoEmbedConfig(
+                customVideoBuilder: (videoUrl, readOnly) {
+                  return null;
+                },
+              ),
+            ),
+            TimeStampEmbedBuilder(),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class TimeStampEmbed extends Embeddable {
+  const TimeStampEmbed(String value) : super(timeStampType, value);
+
+  static const String timeStampType = 'timeStamp';
+
+  static TimeStampEmbed fromDocument(Document document) =>
+      TimeStampEmbed(jsonEncode(document.toDelta().toJson()));
+
+  Document get document => Document.fromJson(jsonDecode(data));
+}
+
+class TimeStampEmbedBuilder extends EmbedBuilder {
+  @override
+  String get key => 'timeStamp';
+
+  @override
+  String toPlainText(Embed node) {
+    return node.value.data;
+  }
+
+  @override
+  Widget build(BuildContext context, EmbedContext embedContext) {
+    return Row(
+      children: [
+        const Icon(Icons.access_time_rounded),
+        Text(embedContext.node.value.data as String),
+      ],
     );
   }
 }

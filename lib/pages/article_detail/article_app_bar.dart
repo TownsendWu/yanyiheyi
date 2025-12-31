@@ -70,7 +70,7 @@ class ArticleAppBar extends StatelessWidget {
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          theme.colorScheme.surface.withValues(alpha: 0.7),
+                          theme.colorScheme.surface.withValues(alpha: 0.2),
                         ],
                       ),
                     ),
