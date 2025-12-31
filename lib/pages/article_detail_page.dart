@@ -22,6 +22,9 @@ class ArticleDetailPage extends StatefulWidget {
 }
 
 class _ArticleDetailPageState extends State<ArticleDetailPage> {
+  final GlobalKey _key = GlobalKey();
+  double? height;
+
   late TextEditingController _titleController;
   late Article _article;
   final FocusNode _titleFocusNode = FocusNode();
@@ -61,7 +64,16 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     // 初始化时加载缓存图片（延迟执行，避免阻塞启动）
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCachedImage();
+      _getHeight();
     });
+  }
+
+  void _getHeight() {
+    final RenderBox renderBox = _key.currentContext?.findRenderObject() as RenderBox;
+    setState(() {
+      height = renderBox.size.height;
+    });
+    print('组件高度: $height');
   }
 
   /// 更新文章状态
@@ -136,11 +148,17 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // 打印页面高度
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    debugPrint('页面高度: $screenHeight, 宽度: $screenWidth');
 
     // 构建主体内容（CustomScrollView）
+    // 这里定义了一个自定义滚动
     final body = CustomScrollView(
       slivers: [
         // App Bar with back button and more options
+        // 这是AppBart
         ArticleAppBar(
           cachedImagePath: _cachedImagePath,
           onBackPress: () => Navigator.pop(context),
@@ -148,19 +166,22 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
         ),
 
         // 内容区域
-        SliverToBoxAdapter(
+        SliverFillRemaining(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            // 这里用了一个Column组件
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // 这应该是顶部的图片
                 ArticleHeader(
                   article: _article,
                   titleController: _titleController,
                   titleFocusNode: _titleFocusNode,
                 ),
+                // 这个是内容
                 ArticleContent(content: _article.content),
-                const SizedBox(height: 80),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -169,12 +190,15 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     );
 
     return GestureDetector(
+      key: _key,
       // 点击空白区域时取消焦点
       onTap: () {
         _titleFocusNode.unfocus();
       },
       child: Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
+        // 这个配置运行页面往上推
+        // resizeToAvoidBottomInset: true,
         body: body,
       ),
     );

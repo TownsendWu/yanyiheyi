@@ -21,36 +21,36 @@ class MyQuillEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        QuillSimpleToolbar(
-          controller: controller,
-          config: QuillSimpleToolbarConfig(
-            embedButtons: FlutterQuillEmbeds.toolbarButtons(),
-            showClipboardPaste: true,
-            customButtons: [
-              QuillToolbarCustomButtonOptions(
-                icon: const Icon(Icons.add_alarm_rounded),
-                onPressed: () => _insertTimeStamp(controller),
-              ),
-            ],
-            buttonOptions: QuillSimpleToolbarButtonOptions(
-              base: QuillToolbarBaseButtonOptions(
-                afterButtonPressed: () {
-                  final isDesktop = {
-                    TargetPlatform.linux,
-                    TargetPlatform.windows,
-                    TargetPlatform.macOS
-                  }.contains(defaultTargetPlatform);
-                  if (isDesktop) {
-                    focusNode.requestFocus();
-                  }
-                },
-              ),
-              linkStyle: QuillToolbarLinkStyleButtonOptions(
-                validateLink: (link) => true,
-              ),
-            ),
-          ),
-        ),
+        // QuillSimpleToolbar(
+        //   controller: controller,
+        //   config: QuillSimpleToolbarConfig(
+        //     embedButtons: FlutterQuillEmbeds.toolbarButtons(),
+        //     showClipboardPaste: true,
+        //     customButtons: [
+        //       QuillToolbarCustomButtonOptions(
+        //         icon: const Icon(Icons.add_alarm_rounded),
+        //         onPressed: () => _insertTimeStamp(controller),
+        //       ),
+        //     ],
+        //     buttonOptions: QuillSimpleToolbarButtonOptions(
+        //       base: QuillToolbarBaseButtonOptions(
+        //         afterButtonPressed: () {
+        //           final isDesktop = {
+        //             TargetPlatform.linux,
+        //             TargetPlatform.windows,
+        //             TargetPlatform.macOS
+        //           }.contains(defaultTargetPlatform);
+        //           if (isDesktop) {
+        //             focusNode.requestFocus();
+        //           }
+        //         },
+        //       ),
+        //       linkStyle: QuillToolbarLinkStyleButtonOptions(
+        //         validateLink: (link) => true,
+        //       ),
+        //     ),
+        //   ),
+        // ),
         Flexible(
           child: QuillEditor(
             focusNode: focusNode,
@@ -58,7 +58,6 @@ class MyQuillEditor extends StatelessWidget {
             controller: controller,
             config: QuillEditorConfig(
               placeholder: 'Start writing your notes...',
-              padding: const EdgeInsets.all(16),
               embedBuilders: [
                 ...FlutterQuillEmbeds.editorBuilders(
                   imageEmbedConfig: QuillEditorImageEmbedConfig(
