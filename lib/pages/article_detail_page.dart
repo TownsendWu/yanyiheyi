@@ -32,6 +32,8 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
   late QuillController _quillController;
   late Article _article;
   final FocusNode _titleFocusNode = FocusNode();
+  final FocusNode _quillFocusNode = FocusNode();
+  bool _isQuillFocused = false;
 
   // 本地缓存的图片路径
   String? _cachedImagePath;
@@ -67,6 +69,13 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
       onArticleUpdated: _updateArticle,
       onArticleDeleted: _handleArticleDeleted,
     );
+
+    // 2. 监听焦点变化，以便刷新 UI 显示工具栏
+    _quillFocusNode.addListener(() {
+      setState(() {
+        _isQuillFocused = _quillFocusNode.hasFocus;
+      });
+    });
 
     // 初始化时加载缓存图片（延迟执行，避免阻塞启动）
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -163,6 +172,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     _titleController.dispose();
     _quillController.dispose();
     _titleFocusNode.dispose();
+    _quillFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -171,9 +181,13 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    //获取键盘弹起
+    final bool isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
+    debugPrint("isKeyboardVisible: $isKeyboardVisible");
+
     // 构建主体内容（CustomScrollView）
     // 这里定义了一个自定义滚动
-    final body = CustomScrollView(
+    final editorBody = CustomScrollView(
       controller: _scrollController,
       slivers: [
         // App Bar with back button and more options
@@ -186,25 +200,48 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
 
         // 内容区域
         SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ArticleHeader(
-                    article: _article,
-                    titleController: _titleController,
-                    titleFocusNode: _titleFocusNode,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ArticleHeader(
+                  article: _article,
+                  titleController: _titleController,
+                  titleFocusNode: _titleFocusNode,
+                ),
+                ArticleContent(
+                  controller: _quillController,
+                  scrollController: _scrollController,
+                  focusNode: _quillFocusNode,
+                  isKeyboardVisible: isKeyboardVisible,
+                ),
+                const SizedBox(height: 20),
+                if (isKeyboardVisible)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 4,
+                          offset: Offset(0, -2),
+                        ),
+                      ],
+                    ),
+                    child: QuillSimpleToolbar(
+                      controller: _quillController,
+                      config: QuillSimpleToolbarConfig(
+                        multiRowsDisplay: false,
+                        showFontSize: false, // 简化显示，避免溢出
+                        showFontFamily: false,
+                      ),
+                    ),
                   ),
-                  ArticleContent(
-                    controller: _quillController,
-                    scrollController: _scrollController,
-                  ),
-                  const SizedBox(height: 20),
-                ],
-              ),
+              ],
             ),
           ),
+        ),
       ],
     );
 
@@ -213,12 +250,39 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
       // 点击空白区域时取消焦点
       onTap: () {
         _titleFocusNode.unfocus();
+        _quillFocusNode.unfocus();
       },
       child: Scaffold(
+        resizeToAvoidBottomInset: true,
         backgroundColor: theme.scaffoldBackgroundColor,
         // 这个配置运行页面往上推
         // resizeToAvoidBottomInset: true,
-        body: body,
+        body: Column(
+          children: [
+            Expanded(child: editorBody),
+            if (_isQuillFocused && isKeyboardVisible)
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 4,
+                      offset: Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: QuillSimpleToolbar(
+                  controller: _quillController,
+                  config: QuillSimpleToolbarConfig(
+                    multiRowsDisplay: false,
+                    showFontSize: false, // 简化显示，避免溢出
+                    showFontFamily: false,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

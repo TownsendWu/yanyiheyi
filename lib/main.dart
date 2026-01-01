@@ -99,7 +99,6 @@ class MyApp extends StatelessWidget {
       // 1. 设置支持的语言
       supportedLocales: const [
         Locale('zh', 'CN'), // 中文
-        Locale('en', 'US'), // 英文
       ],
       navigatorKey: navigatorKey,
       localizationsDelegates: const [
