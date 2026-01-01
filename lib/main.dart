@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -44,32 +46,35 @@ void main() async {
         Provider<ApiService>.value(value: apiService),
 
         // 认证和会员（依赖核心服务）
-        ChangeNotifierProxyProvider2<LocalStorageService, ApiService, AuthProvider>(
-          create: (_) => AuthProvider(
-            storage: storage,
-            apiService: apiService,
-          ),
-          update: (_, storage, apiService, auth) => auth ?? AuthProvider(
-            storage: storage,
-            apiService: apiService,
-          ),
+        ChangeNotifierProxyProvider2<
+          LocalStorageService,
+          ApiService,
+          AuthProvider
+        >(
+          create: (_) => AuthProvider(storage: storage, apiService: apiService),
+          update: (_, storage, apiService, auth) =>
+              auth ?? AuthProvider(storage: storage, apiService: apiService),
         ),
 
-        ChangeNotifierProxyProvider2<LocalStorageService, ApiService, MembershipProvider>(
-          create: (_) => MembershipProvider(
-            storage: storage,
-            apiService: apiService,
-          ),
-          update: (_, storage, apiService, membership) => membership ?? MembershipProvider(
-            storage: storage,
-            apiService: apiService,
-          ),
+        ChangeNotifierProxyProvider2<
+          LocalStorageService,
+          ApiService,
+          MembershipProvider
+        >(
+          create: (_) =>
+              MembershipProvider(storage: storage, apiService: apiService),
+          update: (_, storage, apiService, membership) =>
+              membership ??
+              MembershipProvider(storage: storage, apiService: apiService),
         ),
 
         // 现有 Providers（保持兼容）
         ChangeNotifierProvider(create: (_) => ThemeProvider(prefs: prefs)),
         ChangeNotifierProvider(create: (_) => UserProvider(prefs: prefs)),
-        ChangeNotifierProvider(create: (_) => ActivityProvider(apiService: apiService, delayInit: true)),
+        ChangeNotifierProvider(
+          create: (_) =>
+              ActivityProvider(apiService: apiService, delayInit: true),
+        ),
       ],
       child: const MyApp(),
     ),
@@ -91,7 +96,18 @@ class MyApp extends StatelessWidget {
       home: const SplashPage(),
       debugShowCheckedModeBanner: false,
       builder: FToastBuilder(),
+      // 1. 设置支持的语言
+      supportedLocales: const [
+        Locale('zh', 'CN'), // 中文
+        Locale('en', 'US'), // 英文
+      ],
       navigatorKey: navigatorKey,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        FlutterQuillLocalizations.delegate,
+      ],
     );
   }
 }
