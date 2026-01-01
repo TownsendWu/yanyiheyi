@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import '../data/models/article.dart';
 import '../providers/activity_provider.dart';
 import '../widgets/app_toast.dart';
@@ -22,12 +24,12 @@ class ArticleDetailPage extends StatefulWidget {
 }
 
 class _ArticleDetailPageState extends State<ArticleDetailPage> {
-final ScrollController _scrollController = ScrollController();
+  final ScrollController _scrollController = ScrollController();
   final GlobalKey _key = GlobalKey();
-  final GlobalKey<ArticleContentState> _articleContentKey = GlobalKey<ArticleContentState>();
   double? height;
 
   late TextEditingController _titleController;
+  late QuillController _quillController;
   late Article _article;
   final FocusNode _titleFocusNode = FocusNode();
 
@@ -45,6 +47,9 @@ final ScrollController _scrollController = ScrollController();
     super.initState();
     _article = widget.article;
     _titleController = TextEditingController(text: _article.title);
+
+    // 初始化 QuillController
+    _initQuillController();
 
     // 初始化管理器
     _coverImageManager = CoverImageManager(
@@ -67,6 +72,28 @@ final ScrollController _scrollController = ScrollController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCachedImage();
     });
+  }
+
+  /// 初始化 QuillController
+  void _initQuillController() {
+    Document doc;
+    try {
+      if (_article.content != null && _article.content!.isNotEmpty) {
+        final dynamic json = jsonDecode(_article.content!);
+        doc = Document.fromJson(json);
+      } else {
+        doc = Document();
+      }
+    } catch (e) {
+      doc = Document()..insert(0, _article.content ?? '');
+      debugPrint('Error parsing Quill JSON: $e');
+    }
+
+    _quillController = QuillController(
+      document: doc,
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+    _quillController.document.history.clear();
   }
 
   /// 更新文章状态
@@ -134,6 +161,7 @@ final ScrollController _scrollController = ScrollController();
   @override
   void dispose() {
     _titleController.dispose();
+    _quillController.dispose();
     _titleFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -153,6 +181,7 @@ final ScrollController _scrollController = ScrollController();
           cachedImagePath: _cachedImagePath,
           onBackPress: () => Navigator.pop(context),
           onMenuPress: () => _menuManager.showMoreMenu(),
+          controller: _quillController,
         ),
 
         // 内容区域
@@ -168,8 +197,7 @@ final ScrollController _scrollController = ScrollController();
                     titleFocusNode: _titleFocusNode,
                   ),
                   ArticleContent(
-                    key: _articleContentKey,
-                    content: _article.content,
+                    controller: _quillController,
                     scrollController: _scrollController,
                   ),
                   const SizedBox(height: 20),
