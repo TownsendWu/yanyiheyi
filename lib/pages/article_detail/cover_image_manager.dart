@@ -6,6 +6,7 @@ import 'dart:io';
 import '../../data/models/article.dart';
 import '../../providers/activity_provider.dart';
 import '../../utils/image_cache_manager.dart';
+import '../../utils/unsplash_images.dart';
 import '../../widgets/app_toast.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/logger/app_logger.dart';
@@ -42,6 +43,11 @@ class CoverImageManager {
           label: '从 URL 添加',
           onTap: () => Navigator.pop(context, 'url'),
         ),
+        BottomSheetMenuItem(
+          icon: Icons.shuffle_outlined,
+          label: '随机添加',
+          onTap: () => Navigator.pop(context, 'random'),
+        ),
         if (article.coverImage != null)
           BottomSheetMenuItem(
             icon: Icons.delete_outline,
@@ -60,6 +66,9 @@ class CoverImageManager {
         break;
       case 'url':
         await _inputImageUrlInSheet();
+        break;
+      case 'random':
+        await _loadRandomImage();
         break;
       case 'delete':
         await _deleteCoverImage();
@@ -301,6 +310,38 @@ class CoverImageManager {
     } catch (e) {
       if (context.mounted) {
         AppToast.showError('下载图片失败: $e');
+      }
+    }
+  }
+
+  /// 加载随机图片
+  Future<void> _loadRandomImage() async {
+    final activityProvider = context.read<ActivityProvider>();
+
+    try {
+      // 获取随机图片 URL（排除当前图片）
+      final randomUrl = UnsplashImages.getRandomImageExcluding(article.coverImage);
+
+      // 下载并缓存图片
+      AppToast.showInfo('正在加载随机图片...');
+      final cachedPath = await imageCacheManager.getImage(randomUrl);
+
+      if (cachedPath != null) {
+        // 更新文章的封面图
+        await activityProvider.updateArticleCoverImage(article.id, cachedPath);
+
+        if (context.mounted) {
+          onArticleUpdated(article.copyWith(coverImage: cachedPath), newImagePath: cachedPath);
+          AppToast.showSuccess('随机背景已设置');
+        }
+      } else {
+        if (context.mounted) {
+          AppToast.showError('加载图片失败');
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        AppToast.showError('加载图片失败: $e');
       }
     }
   }
