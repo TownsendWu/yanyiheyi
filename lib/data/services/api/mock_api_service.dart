@@ -4,19 +4,15 @@ import '../../models/activity_data.dart';
 import '../../models/auth_user.dart';
 import '../../models/membership.dart';
 import '../mock_data_service.dart';
-import '../article_storage_service.dart';
 import '../../../core/network/network_result.dart';
 import '../../../core/constants/api_constants.dart';
+import '../../../core/logger/app_logger.dart';
 import 'api_service_interface.dart';
 
 /// Mock API 服务实现
 /// 用于开发和测试，模拟真实的 API 调用
+/// 注意：此服务不操作本地存储，只记录日志
 class MockApiService implements ApiService {
-  final ArticleStorageService _articleStorage;
-
-  MockApiService({
-    required ArticleStorageService articleStorage,
-  }) : _articleStorage = articleStorage;
 
   /// 模拟网络延迟
   Future<void> _delay() async {
@@ -134,39 +130,25 @@ class MockApiService implements ApiService {
     await _delay();
 
     try {
-      // 从持久化存储获取文章数据
-      final allArticles = await _articleStorage.loadArticles();
-
-      // 标签筛选
-      var filteredArticles = allArticles;
-      if (tags != null && tags.isNotEmpty) {
-        filteredArticles = allArticles.where((article) {
-          return article.tags.any((tag) => tags.contains(tag));
-        }).toList();
-      }
-
-      // 排序：置顶的文章在前，然后按日期倒序
-      filteredArticles.sort((a, b) {
-        if (a.isPinned && !b.isPinned) return -1;
-        if (!a.isPinned && b.isPinned) return 1;
-        return b.date.compareTo(a.date);
+      // 模拟从服务器获取文章列表
+      appLogger.logRequest('GET', '/api/articles', body: {
+        'page': page,
+        'pageSize': pageSize,
+        'tags': tags,
       });
 
-      // 分页
-      final start = (page - 1) * pageSize;
-      final end = start + pageSize;
+      // ✅ 返回测试数据（用于测试同步逻辑）
+      final mockArticles = await MockDataService.generateArticleData();
 
-      if (start >= filteredArticles.length) {
-        return Success(<Article>[]);
-      }
+      appLogger.logResponse('/api/articles', 200, data: {
+        'count': mockArticles.length,
+        'page': page,
+        'pageSize': pageSize,
+      });
 
-      final articles = filteredArticles.sublist(
-        start,
-        end > filteredArticles.length ? filteredArticles.length : end,
-      );
-
-      return Success(articles);
+      return Success(mockArticles);
     } catch (e) {
+      appLogger.logNetworkError('/api/articles', e.toString());
       return Failure(AppErrorFactory.fromException(e));
     }
   }
@@ -176,12 +158,22 @@ class MockApiService implements ApiService {
     await _delay();
 
     try {
-      final article = await _articleStorage.getArticle(articleId);
-      if (article == null) {
-        throw NotFoundError.resource('文章');
-      }
-      return Success(article);
+      // 模拟从服务器获取文章详情
+      appLogger.logRequest('GET', '/api/articles/$articleId');
+
+      // 返回空文章（本地已经有数据）
+      final mockArticle = Article(
+        id: articleId,
+        title: '',
+        date: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      appLogger.logResponse('/api/articles/$articleId', 200);
+
+      return Success(mockArticle);
     } catch (e) {
+      appLogger.logNetworkError('/api/articles/$articleId', e.toString());
       return Failure(AppErrorFactory.fromException(e));
     }
   }
@@ -190,9 +182,20 @@ class MockApiService implements ApiService {
   Future<NetworkResult<Article>> createArticle(Article article) async {
     await _delay();
     try {
-      await _articleStorage.createArticle(article);
+      // 模拟向服务器创建文章
+      appLogger.logRequest('POST', '/api/articles', body: {
+        'id': article.id,
+        'title': article.title,
+        'date': article.date.toIso8601String(),
+      });
+
+      appLogger.logResponse('/api/articles', 201, data: {
+        'id': article.id,
+      });
+
       return Success(article);
     } catch (e) {
+      appLogger.logNetworkError('/api/articles', e.toString());
       return Failure(AppErrorFactory.fromException(e));
     }
   }
@@ -201,9 +204,18 @@ class MockApiService implements ApiService {
   Future<NetworkResult<Article>> updateArticle(Article article) async {
     await _delay();
     try {
-      await _articleStorage.updateArticle(article);
+      // 模拟向服务器更新文章
+      appLogger.logRequest('PUT', '/api/articles/${article.id}', body: {
+        'id': article.id,
+        'title': article.title,
+        'updatedAt': article.updatedAt?.toIso8601String(),
+      });
+
+      appLogger.logResponse('/api/articles/${article.id}', 200);
+
       return Success(article);
     } catch (e) {
+      appLogger.logNetworkError('/api/articles/${article.id}', e.toString());
       return Failure(AppErrorFactory.fromException(e));
     }
   }
@@ -212,9 +224,14 @@ class MockApiService implements ApiService {
   Future<NetworkResult<void>> deleteArticle(String articleId) async {
     await _delay();
     try {
-      await _articleStorage.deleteArticle(articleId);
+      // 模拟向服务器删除文章
+      appLogger.logRequest('DELETE', '/api/articles/$articleId');
+
+      appLogger.logResponse('/api/articles/$articleId', 204);
+
       return const Success(null);
     } catch (e) {
+      appLogger.logNetworkError('/api/articles/$articleId', e.toString());
       return Failure(AppErrorFactory.fromException(e));
     }
   }
@@ -223,9 +240,16 @@ class MockApiService implements ApiService {
   Future<NetworkResult<void>> toggleArticlePin(String articleId, bool isPinned) async {
     await _delay();
     try {
-      await _articleStorage.toggleArticlePin(articleId, isPinned);
+      // 模拟向服务器切换文章置顶状态
+      appLogger.logRequest('PATCH', '/api/articles/$articleId/pin', body: {
+        'isPinned': isPinned,
+      });
+
+      appLogger.logResponse('/api/articles/$articleId/pin', 200);
+
       return const Success(null);
     } catch (e) {
+      appLogger.logNetworkError('/api/articles/$articleId/pin', e.toString());
       return Failure(AppErrorFactory.fromException(e));
     }
   }

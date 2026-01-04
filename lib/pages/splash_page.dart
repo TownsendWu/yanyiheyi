@@ -61,33 +61,48 @@ class _SplashPageState extends State<SplashPage>
 
     // 延迟到 build 阶段后预加载数据，避免在 build 期间调用 setState
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final activityProvider = context.read<ActivityProvider>();
-      activityProvider.preload();
+      _initializeAndNavigate();
     });
+  }
 
-    // 1.8秒后自动跳转到主页
-    Timer(
-      const Duration(milliseconds: AppConstants.splashDuration),
-      () {
+  /// 初始化数据并导航到首页
+  Future<void> _initializeAndNavigate() async {
+    try {
+      final activityProvider = context.read<ActivityProvider>();
+      await activityProvider.preload(); // 等待数据加载完成（这是主要的耗时过程）
+
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const HomePage(),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: animation,
-                child: child,
-              );
-            },
-            transitionDuration: const Duration(
-              milliseconds: AppConstants.pageTransitionDuration,
-            ),
-          ),
-        );
+        // 移除固定延时，让初始化过程自然耗时
+        // 可选：设置最小显示时间（例如 1 秒），避免闪屏
+        // await Future.delayed(const Duration(milliseconds: 1000));
+
+        _navigateToHome();
       }
-    });
+    } catch (e) {
+      // 如果加载失败，仍然跳转到首页（让首页处理错误状态）
+      if (mounted) {
+        _navigateToHome();
+      }
+    }
+  }
+
+  /// 跳转到首页
+  void _navigateToHome() {
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const HomePage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: animation,
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(
+          milliseconds: AppConstants.pageTransitionDuration,
+        ),
+      ),
+    );
   }
 
   @override

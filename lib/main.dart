@@ -34,13 +34,12 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   final storage = await LocalStorageService.getInstance();
 
-  // 初始化文章存储服务
+  // 初始化文章存储服务（快速初始化本地存储，首次启动时生成 mock 数据）
+  // 数据同步（本地+远程合并）在 SplashPage 进行
   final articleStorage = ArticleStorageService.getInstance(storage);
   await articleStorage.initializeArticles();
 
-  // 设置文章存储服务到 API 工厂
-  ApiServiceFactory.setArticleStorage(articleStorage);
-
+  // 创建 API 服务
   final apiService = ApiServiceFactory.getInstance();
 
   runApp(
@@ -78,7 +77,11 @@ void main() async {
         ChangeNotifierProvider(create: (_) => UserProvider(prefs: prefs)),
         ChangeNotifierProvider(
           create: (_) =>
-              ActivityProvider(apiService: apiService, delayInit: true),
+              ActivityProvider(
+                apiService: apiService,
+                articleStorage: articleStorage,
+                delayInit: true,
+              ),
         ),
       ],
       child: const MyApp(),

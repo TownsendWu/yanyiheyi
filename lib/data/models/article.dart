@@ -12,6 +12,13 @@ class Article {
   final bool isPinned; // 是否置顶
   final DateTime? pinnedAt; // 置顶时间
 
+  // 软删除标记
+  final bool isDeleted; // 是否已删除
+  final DateTime? deletedAt; // 删除时间
+
+  // 同步标记
+  final bool hasUpdate; // 是否有更新（用于同步判断）
+
   // 字体信息
   final String? fontFamily; // 字体 family
   final double? fontSize; // 字体大小
@@ -29,6 +36,9 @@ class Article {
     List<String>? tags,
     this.isPinned = false,
     this.pinnedAt,
+    this.isDeleted = false,
+    this.deletedAt,
+    this.hasUpdate = false,
     this.fontFamily,
     this.fontSize,
     this.fontWeight,
@@ -97,6 +107,11 @@ class Article {
       pinnedAt: json['pinnedAt'] != null
           ? DateTime.parse(json['pinnedAt'] as String)
           : null,
+      isDeleted: json['isDeleted'] as bool? ?? false,
+      deletedAt: json['deletedAt'] != null
+          ? DateTime.parse(json['deletedAt'] as String)
+          : null,
+      hasUpdate: json['hasUpdate'] as bool? ?? false,
       fontFamily: json['fontFamily'] as String?,
       fontSize: json['fontSize'] as double?,
       fontWeight: json['fontWeight'] as int?,
@@ -117,6 +132,9 @@ class Article {
       'tags': tags,
       'isPinned': isPinned,
       'pinnedAt': pinnedAt?.toIso8601String(),
+      'isDeleted': isDeleted,
+      'deletedAt': deletedAt?.toIso8601String(),
+      'hasUpdate': hasUpdate,
       'fontFamily': fontFamily,
       'fontSize': fontSize,
       'fontWeight': fontWeight,
@@ -137,6 +155,9 @@ class Article {
     List<String>? tags,
     bool? isPinned,
     DateTime? pinnedAt,
+    bool? isDeleted,
+    DateTime? deletedAt,
+    bool? hasUpdate,
     String? fontFamily,
     double? fontSize,
     int? fontWeight,
@@ -156,6 +177,9 @@ class Article {
       tags: tags ?? this.tags,
       isPinned: isPinned ?? this.isPinned,
       pinnedAt: pinnedAt ?? this.pinnedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
+      hasUpdate: hasUpdate ?? this.hasUpdate,
       fontFamily: clearFontFamily ? null : (fontFamily ?? this.fontFamily),
       fontSize: fontSize ?? this.fontSize,
       fontWeight: fontWeight ?? this.fontWeight,

@@ -19,7 +19,7 @@ class AppConstants {
   static const int level4Min = 4;
 
   // 开屏页配置
-  static const int splashDuration = 1800; // 开屏页显示时长（毫秒）
+  static const int splashDuration = 1500; // 开屏页显示时长（毫秒）
   static const int animationDuration = 1200; // 动画时长（毫秒）
   static const int pageTransitionDuration = 300; // 页面过渡时长（毫秒）
   static const double logoSize = 120.0; // Logo 尺寸

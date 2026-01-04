@@ -3,7 +3,6 @@ import '../../models/user_profile.dart';
 import '../../models/activity_data.dart';
 import '../../models/auth_user.dart';
 import '../../models/membership.dart';
-import '../article_storage_service.dart';
 import '../../../core/network/network_result.dart';
 import 'mock_api_service.dart';
 
@@ -98,12 +97,6 @@ abstract class ApiService {
 /// 用于创建不同实现的 API 服务
 class ApiServiceFactory {
   static ApiService? _instance;
-  static ArticleStorageService? _articleStorage;
-
-  /// 设置文章存储服务（必须在 getInstance 之前调用）
-  static void setArticleStorage(ArticleStorageService articleStorage) {
-    _articleStorage = articleStorage;
-  }
 
   /// 获取 API 服务实例
   static ApiService getInstance() {
@@ -118,16 +111,11 @@ class ApiServiceFactory {
 
   /// 创建 Mock 服务
   static ApiService _createMockService() {
-    if (_articleStorage == null) {
-      throw StateError('ArticleStorageService must be set before creating ApiService. '
-          'Call ApiServiceFactory.setArticleStorage() first.');
-    }
-    return MockApiService(articleStorage: _articleStorage!);
+    return MockApiService();
   }
 
   /// 重置服务
   static void reset() {
     _instance = null;
-    _articleStorage = null;
   }
 }

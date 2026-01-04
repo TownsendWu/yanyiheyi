@@ -27,6 +27,6 @@ class ApiConstants {
   static const int maxPageSize = 100;
 
   // Mock 延迟（毫秒）
-  static const int mockDelayMin = 300;
-  static const int mockDelayMax = 800;
+  static const int mockDelayMin = 100;
+  static const int mockDelayMax = 400;
 }

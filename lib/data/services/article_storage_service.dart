@@ -40,14 +40,15 @@ class ArticleStorageService {
   }
 
   /// 从本地存储加载文章列表
+  /// 返回值：成功返回文章列表，失败返回空列表
   Future<List<Article>> loadArticles() async {
-    final jsonString = await _storage.getString(StorageKeys.articlesData);
-    if (jsonString == null || jsonString.isEmpty) {
-      // 如果没有数据，返回空列表
-      return [];
-    }
-
     try {
+      final jsonString = await _storage.getString(StorageKeys.articlesData);
+      if (jsonString == null || jsonString.isEmpty) {
+        // 如果没有数据，返回空列表
+        return [];
+      }
+
       final jsonArray = jsonDecode(jsonString) as List;
       return jsonArray.map((json) => Article.fromJson(json as Map<String, dynamic>)).toList();
     } catch (e) {
@@ -57,10 +58,16 @@ class ArticleStorageService {
   }
 
   /// 保存文章列表到本地存储
-  Future<void> saveArticles(List<Article> articles) async {
-    final jsonArray = articles.map((article) => article.toJson()).toList();
-    final jsonString = jsonEncode(jsonArray);
-    await _storage.setString(StorageKeys.articlesData, jsonString);
+  /// 返回值：成功返回 true，失败返回 false
+  Future<bool> saveArticles(List<Article> articles) async {
+    try {
+      final jsonArray = articles.map((article) => article.toJson()).toList();
+      final jsonString = jsonEncode(jsonArray);
+      await _storage.setString(StorageKeys.articlesData, jsonString);
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   /// 获取单个文章
@@ -74,28 +81,40 @@ class ArticleStorageService {
   }
 
   /// 更新单个文章
-  Future<void> updateArticle(Article updatedArticle) async {
-    final articles = await loadArticles();
-    final index = articles.indexWhere((article) => article.id == updatedArticle.id);
+  /// 返回值：成功返回 true，失败返回 false
+  Future<bool> updateArticle(Article updatedArticle) async {
+    try {
+      final articles = await loadArticles();
+      final index = articles.indexWhere((article) => article.id == updatedArticle.id);
 
-    if (index != -1) {
-      articles[index] = updatedArticle;
-      await saveArticles(articles);
+      if (index != -1) {
+        articles[index] = updatedArticle;
+        return await saveArticles(articles);
+      }
+      return false;
+    } catch (e) {
+      return false;
     }
   }
 
   /// 置顶/取消置顶文章
-  Future<void> toggleArticlePin(String articleId, bool isPinned) async {
-    final articles = await loadArticles();
-    final index = articles.indexWhere((article) => article.id == articleId);
+  /// 返回值：成功返回 true，失败返回 false
+  Future<bool> toggleArticlePin(String articleId, bool isPinned) async {
+    try {
+      final articles = await loadArticles();
+      final index = articles.indexWhere((article) => article.id == articleId);
 
-    if (index != -1) {
-      final updatedArticle = articles[index].copyWith(
-        isPinned: isPinned,
-        pinnedAt: isPinned ? DateTime.now() : null,
-      );
-      articles[index] = updatedArticle;
-      await saveArticles(articles);
+      if (index != -1) {
+        final updatedArticle = articles[index].copyWith(
+          isPinned: isPinned,
+          pinnedAt: isPinned ? DateTime.now() : null,
+        );
+        articles[index] = updatedArticle;
+        return await saveArticles(articles);
+      }
+      return false;
+    } catch (e) {
+      return false;
     }
   }
 
@@ -114,17 +133,27 @@ class ArticleStorageService {
   }
 
   /// 创建新文章
-  Future<void> createArticle(Article article) async {
-    final articles = await loadArticles();
-    articles.add(article);
-    await saveArticles(articles);
+  /// 返回值：成功返回 true，失败返回 false
+  Future<bool> createArticle(Article article) async {
+    try {
+      final articles = await loadArticles();
+      articles.add(article);
+      return await saveArticles(articles);
+    } catch (e) {
+      return false;
+    }
   }
 
   /// 删除文章
-  Future<void> deleteArticle(String articleId) async {
-    final articles = await loadArticles();
-    articles.removeWhere((article) => article.id == articleId);
-    await saveArticles(articles);
+  /// 返回值：成功返回 true，失败返回 false
+  Future<bool> deleteArticle(String articleId) async {
+    try {
+      final articles = await loadArticles();
+      articles.removeWhere((article) => article.id == articleId);
+      return await saveArticles(articles);
+    } catch (e) {
+      return false;
+    }
   }
 
   /// 清空所有文章数据（用于重置）
