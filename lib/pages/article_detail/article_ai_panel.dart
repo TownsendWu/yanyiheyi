@@ -146,7 +146,7 @@ class AIFeatureButton extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Text(
-              'AI 写作助手',
+              '这里写"xxxx"表达会更清晰哦',
               style: TextStyle(
                 fontSize: 13,
                 color: isSelected ? Colors.blue[700] : Colors.grey[700],

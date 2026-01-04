@@ -169,6 +169,41 @@ class ActivityProvider extends ChangeNotifier {
     }
   }
 
+  /// 更新文章的标题和内容
+  Future<void> updateArticleContent(
+    String articleId, {
+    String? title,
+    dynamic content,
+  }) async {
+    // 查找文章
+    final article = _articles.firstWhere((a) => a.id == articleId);
+
+    // 调用 repository 更新文章（会持久化到 SharedPreferences）
+    final updatedArticle = article.copyWith(
+      title: title,
+      content: content,
+      updatedAt: DateTime.now(),
+    );
+    final result = await _articleRepository.updateArticle(updatedArticle);
+
+    if (result.isSuccess) {
+      // 更新内存中的文章状态
+      final updatedArticles = _articles.map((a) {
+        if (a.id == articleId) {
+          return updatedArticle;
+        }
+        return a;
+      }).toList();
+
+      _articles = updatedArticles;
+
+      // 重新生成活动数据（基于最新的文章列表）
+      _activities = MockDataService.generateActivityDataFromArticles(_articles);
+
+      notifyListeners();
+    }
+  }
+
   /// 删除文章
   Future<void> deleteArticle(String articleId) async {
     // 调用 repository 删除文章（会持久化到 SharedPreferences）

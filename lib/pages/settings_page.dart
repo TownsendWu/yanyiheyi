@@ -7,6 +7,8 @@ import '../data/services/article_storage_service.dart';
 import '../data/services/mock_data_service.dart';
 import '../core/services/local_storage_service.dart';
 import '../utils/image_cache_manager.dart';
+import '../core/logger/app_logger.dart';
+import 'package:talker_flutter/talker_flutter.dart';
 
 /// 设置页面
 class SettingsPage extends StatefulWidget {
@@ -191,6 +193,28 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingCard(
             isDark: isDark,
             children: [
+              _SettingItem(
+                icon: Icons.bug_report_outlined,
+                iconColor: Colors.purple,
+                title: '查看日志',
+                subtitle: '查看应用运行日志和错误信息',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TalkerScreen(
+                        talker: appLogger.talker,
+                        theme: TalkerScreenTheme(
+                          backgroundColor: backgroundColor,
+                          cardColor: isDark
+                              ? AppColors.darkSurface
+                              : AppColors.lightSurface,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
               _SettingItem(
                 icon: Icons.refresh,
                 iconColor: Colors.orange,

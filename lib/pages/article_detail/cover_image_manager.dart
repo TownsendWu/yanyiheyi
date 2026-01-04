@@ -8,6 +8,7 @@ import '../../providers/activity_provider.dart';
 import '../../utils/image_cache_manager.dart';
 import '../../widgets/app_toast.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/logger/app_logger.dart';
 import 'bottom_sheet_menu.dart';
 
 /// 封面图管理器
@@ -58,7 +59,7 @@ class CoverImageManager {
         await _pickImageFromGallery();
         break;
       case 'url':
-        await _inputImageUrl();
+        await _inputImageUrlInSheet();
         break;
       case 'delete':
         await _deleteCoverImage();
@@ -100,8 +101,7 @@ class CoverImageManager {
         }
       }
     } catch (e, stackTrace) {
-      debugPrint('选择图片失败: $e');
-      debugPrint('堆栈跟踪: $stackTrace');
+      appLogger.error('选择图片失败', e, stackTrace);
       if (context.mounted) {
         AppToast.showError('选择图片失败: ${e.toString()}');
       }
@@ -124,7 +124,7 @@ class CoverImageManager {
     final ratioX = screenWidth * 10;
     final ratioY = coverHeight * 10;
 
-    debugPrint('屏幕宽度: $screenWidth, 封面高度: $coverHeight, 宽高比: $aspectRatio ($ratioX:$ratioY)');
+    appLogger.debug('屏幕宽度: $screenWidth, 封面高度: $coverHeight, 宽高比: $aspectRatio ($ratioX:$ratioY)');
 
     // 获取当前主题
     final theme = Theme.of(context);
@@ -180,7 +180,7 @@ class CoverImageManager {
 
       return croppedFile;
     } catch (e) {
-      debugPrint('裁切图片失败: $e');
+      appLogger.error('裁切图片失败', e);
       if (context.mounted) {
         AppToast.showError('裁切图片失败: $e');
       }
@@ -188,38 +188,98 @@ class CoverImageManager {
     }
   }
 
-  /// 输入图片 URL
-  Future<void> _inputImageUrl() async {
+  /// 在 BottomSheet 中输入图片 URL
+  Future<void> _inputImageUrlInSheet() async {
     final activityProvider = context.read<ActivityProvider>();
     final TextEditingController urlController = TextEditingController();
 
-    final url = await showDialog<String>(
+    final theme = Theme.of(context);
+
+    await showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('输入图片 URL'),
-        content: TextField(
-          controller: urlController,
-          decoration: const InputDecoration(
-            hintText: 'https://example.com/image.jpg',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true, // 允许内容占据更多空间
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom, // 键盘高度
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 顶部指示条
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+
+                // 标题
+                Text(
+                  '从 URL 添加封面图',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // URL 输入框
+                TextField(
+                  controller: urlController,
+                  decoration: InputDecoration(
+                    hintText: 'https://example.com/image.jpg',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    filled: true,
+                    fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  ),
+                  autofocus: true,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (value) async {
+                    final url = value.trim();
+                    if (url.isNotEmpty) {
+                      Navigator.pop(context);
+                      await _loadImageFromUrl(activityProvider, url);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // 确定按钮
+                FilledButton(
+                  onPressed: () async {
+                    final url = urlController.text.trim();
+                    if (url.isNotEmpty) {
+                      Navigator.pop(context);
+                      await _loadImageFromUrl(activityProvider, url);
+                    }
+                  },
+                  child: const Text('确定'),
+                ),
+              ],
+            ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, urlController.text.trim()),
-            child: const Text('确定'),
-          ),
-        ],
+        ),
       ),
     );
+  }
 
-    if (url == null || url.isEmpty) return;
-
+  /// 从 URL 加载图片
+  Future<void> _loadImageFromUrl(ActivityProvider activityProvider, String url) async {
     try {
       // 下载并缓存图片
       AppToast.showInfo('正在下载图片...');

@@ -6,7 +6,7 @@ class Article {
   final String title;
   final DateTime date; // 创建日期
   final DateTime? updatedAt; // 更新日期
-  final String? content;
+  final dynamic content; // 可以是 String 或 List（Quill Delta 格式）
   final String? coverImage; // 封面图片 URL
   final List<String> tags; // 标签列表
   final bool isPinned; // 是否置顶
@@ -39,14 +39,42 @@ class Article {
   /// 格式化日期字符串 (到分钟)
   String get formattedDate => DateFormat('yyyy/MM/dd HH:mm').format(date);
 
-  /// 格式化短日期字符串 (只有日期)
-  String get formattedShortDate => DateFormat('yyyy/MM/dd').format(date);
+  /// 格式化更新日期字符串 (优先显示 updatedAt，否则显示 date)
+  String get formattedUpdateDate =>
+      DateFormat('yyyy/MM/dd HH:mm').format(updatedAt ?? date);
+
+  /// 格式化短日期字符串 (只有日期) - 优先显示 updatedAt
+  String get formattedShortDate =>
+      DateFormat('yyyy/MM/dd').format(updatedAt ?? date);
 
   /// 预估阅读时间 (分钟)
   int get estimatedReadingTime {
-    if (content == null || content!.isEmpty) return 0;
+    if (content == null) return 0;
+
+    // 处理不同类型的 content
+    String textContent;
+    if (content is String) {
+      textContent = content!;
+    } else if (content is List) {
+      // 从 Quill Delta 格式提取文本
+      final buffer = StringBuffer();
+      for (final item in content as List) {
+        if (item is Map && item.containsKey('insert')) {
+          final insert = item['insert'];
+          if (insert is String) {
+            buffer.write(insert);
+          }
+        }
+      }
+      textContent = buffer.toString();
+    } else {
+      return 0;
+    }
+
+    if (textContent.isEmpty) return 0;
+
     // 假设每分钟阅读 300 字
-    final wordCount = content!.length;
+    final wordCount = textContent.length;
     return (wordCount / 300).ceil();
   }
 
@@ -59,7 +87,7 @@ class Article {
       updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'] as String)
           : null,
-      content: json['content'] as String?,
+      content: json['content'], // 保留原始类型（String 或 List）
       coverImage: json['coverImage'] as String?,
       tags: (json['tags'] as List<dynamic>?)
               ?.map((e) => e as String)
@@ -104,7 +132,7 @@ class Article {
     String? title,
     DateTime? date,
     DateTime? updatedAt,
-    String? content,
+    dynamic content, // 改为 dynamic 以支持 String 和 List
     String? coverImage,
     List<String>? tags,
     bool? isPinned,

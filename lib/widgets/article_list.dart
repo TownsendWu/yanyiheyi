@@ -731,14 +731,40 @@ class _ArticleCard extends StatelessWidget {
     );
   }
 
-  String _getLongExcerpt(String content) {
-    final cleanContent = content.replaceAll('\n', ' ').trim();
+  /// 从 Quill Delta 格式的 content 中提取纯文本
+  String _extractTextFromContent(dynamic content) {
+    if (content == null) return '';
+
+    // 如果是字符串，直接返回（向后兼容）
+    if (content is String) return content;
+
+    // 如果是 List（Quill Delta 格式），提取文本
+    if (content is List) {
+      final buffer = StringBuffer();
+      for (final item in content) {
+        if (item is Map && item.containsKey('insert')) {
+          final insert = item['insert'];
+          if (insert is String) {
+            buffer.write(insert);
+          }
+        }
+      }
+      return buffer.toString();
+    }
+
+    return '';
+  }
+
+  String _getLongExcerpt(dynamic content) {
+    final textContent = _extractTextFromContent(content);
+    final cleanContent = textContent.replaceAll('\n', ' ').trim();
     if (cleanContent.length <= 100) return cleanContent;
     return '${cleanContent.substring(0, 100)}...';
   }
 
-  String _getShortExcerpt(String content) {
-    final cleanContent = content.replaceAll('\n', ' ').trim();
+  String _getShortExcerpt(dynamic content) {
+    final textContent = _extractTextFromContent(content);
+    final cleanContent = textContent.replaceAll('\n', ' ').trim();
     if (cleanContent.length <= 50) return cleanContent;
     return '${cleanContent.substring(0, 50)}...';
   }

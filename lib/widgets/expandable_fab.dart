@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import './app_toast.dart';
 
 class ExpandableFAB extends StatefulWidget {
   final List<FABItem> items;
@@ -48,14 +49,8 @@ class _ExpandableFABState extends State<ExpandableFAB>
   }
 
   void _toggle() {
-    setState(() {
-      _isExpanded = !_isExpanded;
-      if (_isExpanded) {
-        _controller.forward();
-      } else {
-        _controller.reverse();
-      }
-    });
+    // 显示 AppToast 消息而不是展开按钮列表
+    AppToast.showInfo('功能开发中...');
   }
 
   @override

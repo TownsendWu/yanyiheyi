@@ -125,8 +125,13 @@ class ArticleContentState extends State<ArticleContent> {
 
     final defaultTextStyle = DefaultTextStyle.of(context);
 
-    return GestureDetector(
-      onTap: widget.onTap,
+    return Listener(
+      onPointerDown: widget.onTap != null
+          ? (event) {
+              // 使用 onPointerDown 而不是 onTap，因为 QuillEditor 可能会消费掉点击事件
+              widget.onTap!();
+            }
+          : null,
       child: QuillEditor(
         key: _quillEditorKey,
         focusNode: widget.focusNode,

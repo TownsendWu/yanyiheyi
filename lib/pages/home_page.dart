@@ -112,15 +112,6 @@ class _HomePageState extends State<HomePage> {
                 builder: (context, activityProvider, child) {
                   final mockData = activityProvider.activities;
                   final articles = activityProvider.articles;
-
-                  // 调试信息
-                  print('HomePage: activities.length = ${mockData.length}');
-                  print('HomePage: articles.length = ${articles.length}');
-                  print('HomePage: isLoading = ${activityProvider.isLoading}');
-                  if (mockData.isNotEmpty) {
-                    print('HomePage: first activity date = ${mockData.first.date}, count = ${mockData.first.count}');
-                  }
-
                   return SingleChildScrollView(
                     child: PageContainer(
                       extraPadding: const EdgeInsets.only(top: 8, bottom: 8),
@@ -130,7 +121,7 @@ class _HomePageState extends State<HomePage> {
                           const SizedBox(height: 8),
                           WritingActivityCalendar(
                             data: mockData,
-                            totalCountLabel: '2025 年总共创作了 ${activityProvider.getTotalCountByYear(2025)} 篇章',
+                            totalCountLabel: '${DateTime.now().year} 年总共创作了 ${activityProvider.getTotalCountByYear(DateTime.now().year)} 篇章',
                           ),
                           const SizedBox(height: 20),
                           ArticleList(

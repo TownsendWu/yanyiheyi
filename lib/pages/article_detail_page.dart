@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -7,7 +8,7 @@ import '../data/models/article.dart';
 import '../providers/activity_provider.dart';
 import '../widgets/app_toast.dart';
 import '../utils/image_cache_manager.dart';
-import '../utils/quill_utils.dart';
+import '../core/logger/app_logger.dart';
 import 'article_detail/article_app_bar.dart';
 import 'article_detail/article_header.dart';
 import 'article_detail/article_content.dart';
@@ -51,6 +52,16 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
   // QuillEditor 的 GlobalKey，用于获取光标位置
   final GlobalKey _quillEditorGlobalKey = GlobalKey();
 
+  // 自动保存相关
+  Timer? _saveTitleTimer;
+  Timer? _saveContentTimer;
+
+  // 应用生命周期监听器
+  AppLifecycleListener? _lifecycleListener;
+
+  // 缓存 Provider 引用，避免在 dispose 时访问 context
+  late ActivityProvider _activityProvider;
+
   //面板相关功能
   final ChatBottomPanelContainerController<PanelType> _panelController =
       ChatBottomPanelContainerController<PanelType>();
@@ -76,14 +87,41 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
     Document doc;
     try {
       if (_article.content != null && _article.content!.isNotEmpty) {
-        final dynamic json = jsonDecode(_article.content!);
-        doc = Document.fromJson(json);
+        // 处理不同类型的 content
+        if (_article.content is List) {
+          // 已经是 Quill Delta 格式（List），直接使用
+          doc = Document.fromJson(_article.content as List);
+        } else if (_article.content is String) {
+          // 是字符串，需要解析
+          final dynamic json = jsonDecode(_article.content as String);
+          doc = Document.fromJson(json);
+        } else {
+          doc = Document();
+        }
       } else {
         doc = Document();
       }
     } catch (e) {
-      doc = Document()..insert(0, _article.content ?? '');
-      debugPrint('Error parsing Quill JSON: $e');
+      // 如果解析失败，尝试作为纯文本插入
+      doc = Document();
+      if (_article.content != null) {
+        if (_article.content is String) {
+          doc.insert(0, _article.content as String);
+        } else if (_article.content is List) {
+          // 尝试从 Quill Delta 提取文本
+          final buffer = StringBuffer();
+          for (final item in _article.content as List) {
+            if (item is Map && item.containsKey('insert')) {
+              final insert = item['insert'];
+              if (insert is String) {
+                buffer.write(insert);
+              }
+            }
+          }
+          doc.insert(0, buffer.toString());
+        }
+      }
+      appLogger.error('Error parsing Quill JSON', e);
     }
 
     _quillController = QuillController(
@@ -134,11 +172,11 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
       return;
     }
 
-    debugPrint('_loadCachedImage: ${_article.coverImage}');
+    appLogger.debug('_loadCachedImage: ${_article.coverImage}');
 
     // 在后台执行，避免阻塞主线程
     final cachedPath = await _imageCacheManager.getImage(_article.coverImage!);
-    debugPrint('_loadCachedImage: $cachedPath');
+    appLogger.debug('_loadCachedImage: $cachedPath');
     if (mounted) {
       setState(() {
         _cachedImagePath = cachedPath;
@@ -157,33 +195,22 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
 
   // 监听焦点变化
   void _onFocusChange() {
-    if (_quillFocusNode.hasFocus && !_isKeyboardVisible) {
+    if (_quillFocusNode.hasFocus) {
       // TextField 获得焦点，延迟显示工具栏，等待键盘动画完成
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted && _quillFocusNode.hasFocus) {
-          setState(() {
-            _isKeyboardVisible = true;
-          });
-        }
-      });
+      if (!_isKeyboardVisible) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted && _quillFocusNode.hasFocus) {
+            setState(() {
+              _isKeyboardVisible = true;
+            });
+          }
+        });
+      }
     } else if (!_quillFocusNode.hasFocus &&
         _currentPanelType == PanelType.none) {
       // TextField 失去焦点且没有面板，立即隐藏工具栏
       setState(() {
         _isKeyboardVisible = false;
-      });
-    }
-  }
-
-  // 监听光标位置变化
-  void _onSelectionChanged() {
-    // 只有在编辑器有焦点时才检查滚动
-    if (_quillFocusNode.hasFocus) {
-      // 延迟执行，确保布局已经更新
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted) {
-          _checkCursorAndScrollIfNeeded();
-        }
       });
     }
   }
@@ -261,50 +288,158 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
     _panelController.updatePanelType(ChatBottomPanelType.none);
   }
 
-  /// 检查光标位置并自动滚动，确保光标不被键盘和工具栏遮挡
-  void _checkCursorAndScrollIfNeeded() {
-    final rect = QuillUtils.getCursorPosition(
-      editorKey: _quillEditorGlobalKey,
-      controller: _quillController,
-    );
+  /// 标题变化监听器（防抖保存）
+  void _onTitleChanged() {
+    // 取消之前的定时器
+    _saveTitleTimer?.cancel();
 
-    if (rect == null) {
-      debugPrint('无法获取光标位置');
+    // 设置新的定时器（1秒后保存）
+    _saveTitleTimer = Timer(const Duration(seconds: 1), () {
+      _saveTitle();
+    });
+  }
+
+  /// 内容变化监听器（防抖保存）
+  void _onContentChanged() {
+    // 取消之前的定时器
+    _saveContentTimer?.cancel();
+
+    // 设置新的定时器（2秒后保存，因为内容变化更频繁）
+    _saveContentTimer = Timer(const Duration(seconds: 2), () {
+      _saveContent();
+    });
+  }
+
+  /// 保存标题
+  Future<void> _saveTitle() async {
+    final newTitle = _titleController.text.trim();
+
+    // 如果标题没有变化，不保存
+    if (newTitle == _article.title) return;
+
+    // 如果标题为空，不保存
+    if (newTitle.isEmpty) {
+      AppToast.showWarning('标题不能为空');
+      _titleController.text = _article.title;
       return;
     }
 
-    final screenHeight = MediaQuery.of(context).size.height;
-    final keyboardHeight = _systemKeyboardHeight + 40;
-    final keyboardTopY = screenHeight - keyboardHeight;
-
-    // 计算光标底部到键盘顶部的距离
-    final cursorBottomY = rect.bottom;
-    final distanceToKeyboard = keyboardTopY - cursorBottomY;
-
-    debugPrint(
-      '═══════════════════════════════════════\n'
-      '光标位置检查：\n'
-      '  屏幕高度: $screenHeight\n'
-      '  键盘高度: $keyboardHeight\n'
-      '  键盘顶部 Y 坐标: $keyboardTopY\n'
-      '  光标底部 Y 坐标: $cursorBottomY\n'
-      '  光标到键盘的距离: $distanceToKeyboard\n'
-      '  光标完整位置: $rect\n'
-      '═══════════════════════════════════════',
-    );
-
-    // 如果光标到键盘的距离小于 30，需要向上滚动
-    if (distanceToKeyboard < 30) {
-      final scrollOffset = _scrollController.offset;
-      final needToScroll = 30 - distanceToKeyboard;
-
-      debugPrint('光标距离键盘太近，向上滚动 $needToScroll 像素');
-
-      _scrollController.animateTo(
-        scrollOffset + needToScroll,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
+    try {
+      final now = DateTime.now();
+      await _activityProvider.updateArticleContent(
+        _article.id,
+        title: newTitle,
       );
+
+      // 更新本地文章对象（包含 updatedAt）
+      setState(() {
+        _article = _article.copyWith(
+          title: newTitle,
+          updatedAt: now,
+        );
+      });
+
+      appLogger.info('标题已保存: $newTitle');
+    } catch (e) {
+      appLogger.error('保存标题失败', e);
+      AppToast.showError('保存标题失败');
+    }
+  }
+
+  /// 保存内容
+  Future<void> _saveContent() async {
+    try {
+      // 将 Quill Document 转换为 Delta JSON
+      final deltaJson = _quillController.document.toDelta().toJson();
+
+      // 检查内容是否真的变化了
+      bool hasChanged = false;
+      if (_article.content is List) {
+        // 比较两个 List 是否相同
+        hasChanged = jsonEncode(_article.content) != jsonEncode(deltaJson);
+      } else {
+        // 旧格式是字符串，直接比较
+        hasChanged = true;
+      }
+
+      if (!hasChanged) return;
+
+      final now = DateTime.now();
+      await _activityProvider.updateArticleContent(
+        _article.id,
+        content: deltaJson,
+      );
+
+      // 更新本地文章对象（包含 updatedAt）
+      setState(() {
+        _article = _article.copyWith(
+          content: deltaJson,
+          updatedAt: now,
+        );
+      });
+
+      appLogger.info('内容已自动保存');
+    } catch (e) {
+      appLogger.error('保存内容失败', e);
+    }
+  }
+
+  /// 立即保存所有未保存的更改（用于页面离开时）
+  Future<void> _saveAllChanges() async {
+    // 取消所有待执行的定时器
+    _saveTitleTimer?.cancel();
+    _saveContentTimer?.cancel();
+
+    // 检查标题是否有变化
+    final newTitle = _titleController.text.trim();
+    final titleChanged = newTitle != _article.title && newTitle.isNotEmpty;
+
+    // 检查内容是否有变化
+    final deltaJson = _quillController.document.toDelta().toJson();
+    bool contentChanged = false;
+    if (_article.content is List) {
+      contentChanged = jsonEncode(_article.content) != jsonEncode(deltaJson);
+    } else {
+      contentChanged = true;
+    }
+
+    // 如果有变化，立即保存
+    if (titleChanged || contentChanged) {
+      try {
+        final now = DateTime.now();
+        await _activityProvider.updateArticleContent(
+          _article.id,
+          title: titleChanged ? newTitle : null,
+          content: contentChanged ? deltaJson : null,
+        );
+
+        // 同步更新本地文章对象（包含 updatedAt）
+        _article = _article.copyWith(
+          title: titleChanged ? newTitle : _article.title,
+          content: contentChanged ? deltaJson : _article.content,
+          updatedAt: now,
+        );
+
+        appLogger.info('页面离开时已保存所有更改');
+      } catch (e) {
+        appLogger.error('保存更改失败', e);
+      }
+    }
+  }
+
+  /// 应用生命周期状态变化监听器
+  void _onAppStateChanged(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        // 应用被暂停、失焦或分离时（用户清后台、切换应用等），立即保存
+        _saveAllChanges();
+        break;
+      case AppLifecycleState.resumed:
+      case AppLifecycleState.hidden:
+        // 应用恢复或隐藏时，无需特殊处理
+        break;
     }
   }
 
@@ -313,6 +448,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
     super.initState();
     _article = widget.article;
     _titleController = TextEditingController(text: _article.title);
+
+    // 缓存 Provider 引用
+    _activityProvider = context.read<ActivityProvider>();
 
     // 添加 WidgetsBinding 观察者，监听键盘变化
     WidgetsBinding.instance.addObserver(this);
@@ -340,8 +478,16 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
     // 2. 监听焦点变化，以便刷新 UI 显示工具栏
     _quillFocusNode.addListener(_onFocusChange);
 
-    // 3. 监听光标位置变化，触发滚动检查
-    _quillController.addListener(_onSelectionChanged);
+    // 添加标题变化监听器（防抖保存）
+    _titleController.addListener(_onTitleChanged);
+
+    // 添加内容变化监听器（防抖保存）
+    _quillController.addListener(_onContentChanged);
+
+    // 监听应用生命周期变化（处理用户清后台的情况）
+    _lifecycleListener = AppLifecycleListener(
+      onStateChange: _onAppStateChanged,
+    );
 
     // 初始化时加载缓存图片（延迟执行，避免阻塞启动）
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -353,6 +499,21 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
   void dispose() {
     // 移除 WidgetsBinding 观察者
     WidgetsBinding.instance.removeObserver(this);
+
+    // 页面销毁时，立即保存所有未保存的更改
+    _saveAllChanges();
+
+    // 取消自动保存定时器
+    _saveTitleTimer?.cancel();
+    _saveContentTimer?.cancel();
+
+    // 移除生命周期监听器
+    _lifecycleListener?.dispose();
+
+    // 移除监听器
+    _titleController.removeListener(_onTitleChanged);
+    _quillController.removeListener(_onContentChanged);
+
     _titleController.dispose();
     _quillController.dispose();
     _titleFocusNode.dispose();
@@ -405,6 +566,14 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
                   scrollController: _scrollController,
                   focusNode: _quillFocusNode,
                   quillEditorGlobalKey: _quillEditorGlobalKey,
+                  onTap: () {
+                    // 如果当前有自定义面板打开（非键盘和非none状态），点击编辑区唤起键盘
+                    appLogger.debug("ArticleContent onTap: $_currentPanelType");
+                    if (_currentPanelType != PanelType.none &&
+                        _currentPanelType != PanelType.keyboard) {
+                      _switchPanel(PanelType.keyboard);
+                    }
+                  },
                 ),
                 const SizedBox(height: 20),
               ],

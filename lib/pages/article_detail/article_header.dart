@@ -54,7 +54,7 @@ class ArticleHeader extends StatelessWidget {
         Row(
           children: [
             Text(
-              article.formattedDate,
+              article.formattedUpdateDate,
               style: TextStyle(
                 fontSize: 14,
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.7),

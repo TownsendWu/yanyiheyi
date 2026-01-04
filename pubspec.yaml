@@ -26,9 +26,10 @@ dependencies:
   crypto: ^3.0.3
   uuid: ^4.3.3
   flutter_quill_extensions: ^11.0.0
-  flutter_localizations: 
+  flutter_localizations:
     sdk: flutter
   chat_bottom_container: ^0.4.0
+  talker_flutter: ^4.4.2
   
 dev_dependencies:
   flutter_test:

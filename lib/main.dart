@@ -7,6 +7,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/services/local_storage_service.dart';
+import 'core/logger/app_logger.dart';
 import 'data/services/api/api_service_interface.dart';
 import 'data/services/article_storage_service.dart';
 
@@ -24,6 +25,10 @@ GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 初始化日志系统
+  appLogger.init();
+  appLogger.info('应用启动中...');
 
   // 初始化核心服务
   final prefs = await SharedPreferences.getInstance();
