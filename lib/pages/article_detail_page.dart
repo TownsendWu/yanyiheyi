@@ -175,20 +175,34 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
       });
       _quillController.readOnly = false;
       _panelController.updatePanelType(ChatBottomPanelType.keyboard);
+      // 延迟显示工具栏
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (mounted) {
+          setState(() {
+            _isKeyboardVisible = true;
+          });
+        }
+      });
     } else {
       // 切换到新面板
       if (type == PanelType.keyboard) {
         setState(() {
           _currentPanelType = type;
-          _isKeyboardVisible = true;
         });
         _quillController.readOnly = false;
         _panelController.updatePanelType(ChatBottomPanelType.keyboard);
+        // 延迟显示工具栏
+        Future.delayed(const Duration(milliseconds: 150), () {
+          if (mounted) {
+            setState(() {
+              _isKeyboardVisible = true;
+            });
+          }
+        });
       } else {
         // 切换到自定义面板，设置只读并强制请求焦点
         setState(() {
           _currentPanelType = type;
-          _isKeyboardVisible = true;
         });
         _quillController.readOnly = true;
 
@@ -200,6 +214,14 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
               data: type,
               forceHandleFocus: ChatBottomHandleFocus.requestFocus,
             );
+            // 延迟显示工具栏
+            Future.delayed(const Duration(milliseconds: 300), () {
+              if (mounted) {
+                setState(() {
+                  _isKeyboardVisible = true;
+                });
+              }
+            });
           }
         });
       }

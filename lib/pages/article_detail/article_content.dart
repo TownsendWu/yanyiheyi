@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
-import '../../core/theme/app_colors.dart';
 
 class ArticleContent extends StatefulWidget {
   // QuillController 从外部传入
@@ -30,17 +29,92 @@ class ArticleContent extends StatefulWidget {
 class ArticleContentState extends State<ArticleContent> {
   //quill 相关配置 关键：用于获取 Editor 的 RenderObject
   final GlobalKey _quillEditorKey = GlobalKey();
-  OverlayEntry? _overlayEntry;
+  // OverlayEntry? _cursorButtonOverlay;
+
+  // void _onFocusChange() {
+  //   if (widget.focusNode.hasFocus) {
+  //     _showCursorButton();
+  //   } else {
+  //     _hideCursorButton();
+  //   }
+  // }
+
+  // void _onSelectionChange() {
+  //   if (widget.focusNode.hasFocus) {
+  //     _updateCursorButtonPosition();
+  //   } else {
+  //     _hideCursorButton();
+  //   }
+  // }
+
+  // void _showCursorButton() {
+  //   if (_cursorButtonOverlay != null) {
+  //     _updateCursorButtonPosition();
+  //     return;
+  //   }
+
+  //   _cursorButtonOverlay = OverlayEntry(
+  //     builder: (context) => Positioned(
+  //       left: 0,
+  //       top: 0,
+  //       child: _CursorButton(
+  //         onPositionUpdate: (position) {
+  //           _cursorButtonOverlay?.markNeedsBuild();
+  //         },
+  //         onTap: () {
+  //           AppToast.showSuccess('光标按钮被点击了！');
+  //         },
+  //       ),
+  //     ),
+  //   );
+
+  //   Overlay.of(context).insert(_cursorButtonOverlay!);
+  //   _updateCursorButtonPosition();
+  // }
+
+  // void _hideCursorButton() {
+  //   _cursorButtonOverlay?.remove();
+  //   _cursorButtonOverlay = null;
+  // }
+
+  // void _updateCursorButtonPosition() {
+  //   if (_cursorButtonOverlay == null) return;
+
+  //   final cursorRect = QuillUtils.getCursorPosition(
+  //     editorKey: _quillEditorKey,
+  //     controller: widget.controller,
+  //   );
+
+  //   if (cursorRect != null) {
+  //     _cursorButtonOverlay!.remove();
+  //     _cursorButtonOverlay = OverlayEntry(
+  //       builder: (context) => Positioned(
+  //         left: cursorRect.left + (cursorRect.width / 2) - 20,
+  //         top: cursorRect.top - 50,
+  //         child: _CursorButton(
+  //           onPositionUpdate: (position) {},
+  //           onTap: () {
+  //             AppToast.showSuccess('光标按钮被点击了！');
+  //           },
+  //         ),
+  //       ),
+  //     );
+  //     Overlay.of(context).insert(_cursorButtonOverlay!);
+  //   }
+  // }
 
   @override
   void initState() {
     super.initState();
-    // 监听选区变化
-    // widget.controller.addListener(_updateAiButtonPosition);
+    // widget.focusNode.addListener(_onFocusChange);
+    // widget.controller.addListener(_onSelectionChange);
   }
 
   @override
   void dispose() {
+    // widget.focusNode.removeListener(_onFocusChange);
+    // widget.controller.removeListener(_onSelectionChange);
+    // _hideCursorButton();
     super.dispose();
   }
 
