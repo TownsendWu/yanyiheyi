@@ -22,6 +22,7 @@ enum PanelType {
   formatting, // 文字格式化
   more, // 更多选项
   emoji, // 表情面板
+  ai, // AI 面板
 }
 
 /// 文章详情页 (Notion 风格)
@@ -350,34 +351,81 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
         color: Colors.grey[100],
         border: Border(
           top: BorderSide(color: Colors.grey[300]!),
-          bottom: BorderSide(color: Colors.grey[300]!),
         ),
       ),
       child: Row(
         children: [
-          // 文字格式化按钮
+          // 左侧 AI 功能区
+          Expanded(
+            child: _buildAIFeatureArea(),
+          ),
+
+          // 右侧图标按钮
           _ToolbarItem(
             icon: Icons.text_fields,
             isSelected: _currentPanelType == PanelType.formatting,
             onTap: () => _switchPanel(PanelType.formatting),
           ),
 
-          // 表情按钮
-          _ToolbarItem(
-            icon: Icons.emoji_emotions_outlined,
-            isSelected: _currentPanelType == PanelType.emoji,
-            onTap: () => _switchPanel(PanelType.emoji),
-          ),
+          // _ToolbarItem(
+          //   icon: Icons.emoji_emotions_outlined,
+          //   isSelected: _currentPanelType == PanelType.emoji,
+          //   onTap: () => _switchPanel(PanelType.emoji),
+          // ),
 
-          // 更多按钮
           _ToolbarItem(
             icon: Icons.more_horiz,
             isSelected: _currentPanelType == PanelType.more,
             onTap: () => _switchPanel(PanelType.more),
           ),
-
-          const Spacer(),
         ],
+      ),
+    );
+  }
+
+  // AI 功能区
+  Widget _buildAIFeatureArea() {
+    return GestureDetector(
+      onTap: () => _switchPanel(PanelType.ai),
+      child: Container(
+        height: 28,
+        margin: const EdgeInsets.only(left: 12, right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _currentPanelType == PanelType.ai
+                ? Colors.blue[700]!
+                : Colors.grey[300]!,
+            width: _currentPanelType == PanelType.ai ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.auto_awesome,
+              size: 16,
+              color: _currentPanelType == PanelType.ai
+                  ? Colors.blue[700]
+                  : Colors.grey[700],
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'AI 写作助手',
+              style: TextStyle(
+                fontSize: 13,
+                color: _currentPanelType == PanelType.ai
+                    ? Colors.blue[700]
+                    : Colors.grey[700],
+                fontWeight: _currentPanelType == PanelType.ai
+                    ? FontWeight.w600
+                    : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -397,6 +445,8 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
             return _buildMorePanel();
           case PanelType.emoji:
             return _buildEmojiPanel();
+          case PanelType.ai:
+            return _buildAIPanel();
           default:
             return const SizedBox.shrink();
         }
@@ -625,6 +675,111 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     );
   }
 
+  // AI 面板
+  Widget _buildAIPanel() {
+    return Container(
+      height: _keyboardHeight,
+      padding: const EdgeInsets.all(16),
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 标题
+          Row(
+            children: [
+              Icon(
+                Icons.auto_awesome,
+                size: 20,
+                color: Colors.blue[700],
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'AI 写作助手',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[800],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // 功能按钮网格
+          Expanded(
+            child: GridView.count(
+              crossAxisCount: 3,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              children: [
+                _AIActionButton(
+                  icon: Icons.edit_note,
+                  label: '续写',
+                  description: '继续书写内容',
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('AI 续写功能待实现')),
+                    );
+                  },
+                ),
+                _AIActionButton(
+                  icon: Icons.summarize,
+                  label: '总结',
+                  description: '总结文章要点',
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('AI 总结功能待实现')),
+                    );
+                  },
+                ),
+                _AIActionButton(
+                  icon: Icons.translate,
+                  label: '翻译',
+                  description: '翻译选中文本',
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('AI 翻译功能待实现')),
+                    );
+                  },
+                ),
+                _AIActionButton(
+                  icon: Icons.psychology,
+                  label: '润色',
+                  description: '优化文字表达',
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('AI 润色功能待实现')),
+                    );
+                  },
+                ),
+                _AIActionButton(
+                  icon: Icons.expand,
+                  label: '扩写',
+                  description: '丰富文章内容',
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('AI 扩写功能待实现')),
+                    );
+                  },
+                ),
+                _AIActionButton(
+                  icon: Icons.compress,
+                  label: '缩写',
+                  description: '精简文章内容',
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('AI 缩写功能待实现')),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // 在光标位置插入文本
   void _insertText(String text) {
     final index = _quillController.selection.baseOffset;
@@ -717,6 +872,66 @@ class _FormatButton extends StatelessWidget {
                 fontSize: 12,
                 color: Colors.grey[700],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// AI 操作按钮
+class _AIActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String description;
+  final VoidCallback onTap;
+
+  const _AIActionButton({
+    required this.icon,
+    required this.label,
+    required this.description,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: Colors.blue[700],
+              size: 28,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
