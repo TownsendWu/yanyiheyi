@@ -15,13 +15,13 @@ class AppColors {
 
   // ==================== 浅色主题颜色 ====================
   /// 浅色主题 - 背景色
-  static const lightBackground = Color(0xFFFAFAFA);
+  static const lightBackground = Color(0xFFF4F5F5);
 
   /// 浅色主题 - 表面色（卡片、对话框等）
   static const lightSurface = Color(0xFFFFFFFF);
 
   /// 浅色主题 - AppBar 背景色
-  static const lightAppBarBackground = Color(0xFFFAFAFA);
+  static const lightAppBarBackground = Color(0xFFF4F5F5);
 
   /// 浅色主题 - 主要文本颜色
   static const lightTextPrimary = Color(0xFF000000);
