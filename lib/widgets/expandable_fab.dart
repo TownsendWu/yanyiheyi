@@ -8,6 +8,7 @@ class ExpandableFAB extends StatefulWidget {
   final double expandedButtonSize; // 展开按钮大小（默认 40）
   final double spacing; // 按钮之间的间距（默认 8）
   final double offsetFromRight; // 距离右边的偏移量（默认 16）
+  final VoidCallback? onMainButtonPressed; // 主按钮点击回调
 
   const ExpandableFAB({
     super.key,
@@ -17,6 +18,7 @@ class ExpandableFAB extends StatefulWidget {
     this.expandedButtonSize = 40,
     this.spacing = 8,
     this.offsetFromRight = 16,
+    this.onMainButtonPressed,
   });
 
   @override
@@ -49,8 +51,13 @@ class _ExpandableFABState extends State<ExpandableFAB>
   }
 
   void _toggle() {
-    // 显示 AppToast 消息而不是展开按钮列表
-    AppToast.showInfo('功能开发中...');
+    // 如果提供了主按钮回调，则调用它
+    if (widget.onMainButtonPressed != null) {
+      widget.onMainButtonPressed!();
+    } else {
+      // 默认行为：显示 AppToast 消息
+      AppToast.showInfo('功能开发中...');
+    }
   }
 
   @override

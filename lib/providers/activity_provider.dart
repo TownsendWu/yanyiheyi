@@ -178,6 +178,15 @@ class ActivityProvider extends ChangeNotifier {
     // 查找文章
     final article = _articles.firstWhere((a) => a.id == articleId);
 
+    // 检查是否真的有变化
+    final titleChanged = title != null && title != article.title;
+    final contentChanged = content != null && content != article.content;
+
+    // 如果没有任何变化，直接返回
+    if (!titleChanged && !contentChanged) {
+      return;
+    }
+
     // 调用 repository 更新文章（会持久化到 SharedPreferences）
     final updatedArticle = article.copyWith(
       title: title,
@@ -244,5 +253,35 @@ class ActivityProvider extends ChangeNotifier {
   /// 预加载数据（供 SplashPage 使用）
   Future<void> preload() async {
     await _initializeData();
+  }
+
+  /// 创建新文章
+  Future<Article?> createNewArticle() async {
+    // 创建一个空文章
+    final now = DateTime.now();
+    final newArticle = Article(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: '',
+      date: now,
+      updatedAt: now,
+      content: null,
+    );
+
+    // 调用 repository 创建文章（会持久化到 SharedPreferences）
+    final result = await _articleRepository.createArticle(newArticle);
+
+    if (result.isSuccess && result.getData != null) {
+      // 添加到内存中的文章列表
+      _articles.insert(0, result.getData!);
+
+      // 重新生成活动数据
+      _activities = MockDataService.generateActivityDataFromArticles(_articles);
+
+      notifyListeners();
+
+      return result.getData!;
+    }
+
+    return null;
   }
 }

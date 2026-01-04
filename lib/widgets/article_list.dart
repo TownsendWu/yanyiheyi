@@ -43,18 +43,20 @@ class _ArticleListState extends State<ArticleList> {
   List<String> get selectedArticleIds => _selectedArticleIds.toList();
 
   static const String _isCardViewKey = 'isCardView';
+  static const String _isNewestFirstKey = 'isNewestFirst';
 
   @override
   void initState() {
     super.initState();
-    _loadViewMode();
+    _loadPreferences();
   }
 
-  /// 从 SharedPreferences 加载视图模式
-  Future<void> _loadViewMode() async {
+  /// 从 SharedPreferences 加载用户偏好
+  Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _isCardView = prefs.getBool(_isCardViewKey) ?? false;
+      _isNewestFirst = prefs.getBool(_isNewestFirstKey) ?? true;
     });
   }
 
@@ -62,6 +64,12 @@ class _ArticleListState extends State<ArticleList> {
   Future<void> _saveViewMode(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_isCardViewKey, value);
+  }
+
+  /// 保存排序模式到 SharedPreferences
+  Future<void> _saveSortMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_isNewestFirstKey, value);
   }
 
   List<Article> get _sortedArticles {
@@ -97,6 +105,7 @@ class _ArticleListState extends State<ArticleList> {
       _isNewestFirst = !_isNewestFirst;
       // _currentPage = 1; // 重置到第一页 (已移除分页功能)
     });
+    _saveSortMode(_isNewestFirst);
   }
 
   void _toggleView() {

@@ -62,6 +62,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
   // 缓存 Provider 引用，避免在 dispose 时访问 context
   late ActivityProvider _activityProvider;
 
+  // 标记是否是临时文章（ID为空）
+  bool _isTempArticle = false;
+
   //面板相关功能
   final ChatBottomPanelContainerController<PanelType> _panelController =
       ChatBottomPanelContainerController<PanelType>();
@@ -314,36 +317,67 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
   Future<void> _saveTitle() async {
     final newTitle = _titleController.text.trim();
 
-    // 如果标题没有变化，不保存
-    if (newTitle == _article.title) return;
+    // 如果标题为空，使用 "Untitled"
+    final titleToSave = newTitle.isEmpty ? 'Untitled' : newTitle;
 
-    // 如果标题为空，不保存
-    if (newTitle.isEmpty) {
-      AppToast.showWarning('标题不能为空');
-      _titleController.text = _article.title;
-      return;
-    }
+    // 如果标题没有变化，不保存
+    if (titleToSave == _article.title) return;
 
     try {
       final now = DateTime.now();
-      await _activityProvider.updateArticleContent(
-        _article.id,
-        title: newTitle,
-      );
 
-      // 更新本地文章对象（包含 updatedAt）
-      setState(() {
-        _article = _article.copyWith(
-          title: newTitle,
-          updatedAt: now,
+      // 如果是临时文章，先创建文章
+      if (_isTempArticle) {
+        final createdArticle = await _activityProvider.createNewArticle();
+        if (createdArticle != null) {
+          setState(() {
+            _article = createdArticle.copyWith(
+              title: titleToSave,
+              updatedAt: now,
+            );
+            _isTempArticle = false;
+          });
+          debugPrint('新文章已创建，标题已保存: $titleToSave');
+        } else {
+          AppToast.showError('创建文章失败');
+        }
+      } else {
+        // 已存在的文章，直接更新
+        await _activityProvider.updateArticleContent(
+          _article.id,
+          title: titleToSave,
         );
-      });
 
-      appLogger.info('标题已保存: $newTitle');
+        // 更新本地文章对象（包含 updatedAt）
+        setState(() {
+          _article = _article.copyWith(title: titleToSave, updatedAt: now);
+        });
+
+        debugPrint('标题已保存: $titleToSave');
+      }
     } catch (e) {
-      appLogger.error('保存标题失败', e);
+      debugPrint('保存标题失败: $e');
       AppToast.showError('保存标题失败');
     }
+  }
+
+  /// 移除 Quill 自动添加的末尾换行符（用于比较）
+  List _normalizeDeltaJson(List deltaJson) {
+    if (deltaJson.isEmpty) return deltaJson;
+
+    // 移除所有 insert 值末尾的 '\n'
+    final result = deltaJson.map((op) {
+      if (op is Map && op.containsKey('insert')) {
+        final insert = op['insert'];
+        if (insert is String && insert.endsWith('\n')) {
+          // 移除末尾的 '\n'
+          final newInsert = insert.substring(0, insert.length - 1);
+          return {"insert": newInsert};
+        }
+      }
+      return op;
+    }).toList();
+    return result;
   }
 
   /// 保存内容
@@ -355,8 +389,14 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
       // 检查内容是否真的变化了
       bool hasChanged = false;
       if (_article.content is List) {
-        // 比较两个 List 是否相同
-        hasChanged = jsonEncode(_article.content) != jsonEncode(deltaJson);
+        // 比较两个 List 是否相同（都进行标准化后再比较）
+        final normalizedOldContent = _normalizeDeltaJson(
+          _article.content as List,
+        );
+        final normalizedNewContent = _normalizeDeltaJson(deltaJson);
+        hasChanged =
+            jsonEncode(normalizedOldContent) !=
+            jsonEncode(normalizedNewContent);
       } else {
         // 旧格式是字符串，直接比较
         hasChanged = true;
@@ -365,41 +405,124 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
       if (!hasChanged) return;
 
       final now = DateTime.now();
-      await _activityProvider.updateArticleContent(
-        _article.id,
-        content: deltaJson,
-      );
 
-      // 更新本地文章对象（包含 updatedAt）
-      setState(() {
-        _article = _article.copyWith(
+      // 如果是临时文章，先创建文章
+      if (_isTempArticle) {
+        final createdArticle = await _activityProvider.createNewArticle();
+        if (createdArticle != null) {
+          setState(() {
+            _article = createdArticle.copyWith(
+              content: deltaJson,
+              updatedAt: now,
+            );
+            _isTempArticle = false;
+          });
+          debugPrint('新文章已创建，内容已保存');
+        }
+      } else {
+        // 已存在的文章，直接更新
+        await _activityProvider.updateArticleContent(
+          _article.id,
           content: deltaJson,
-          updatedAt: now,
         );
-      });
 
-      appLogger.info('内容已自动保存');
+        // 更新本地文章对象（包含 updatedAt）
+        setState(() {
+          _article = _article.copyWith(content: deltaJson, updatedAt: now);
+        });
+
+        debugPrint('内容已自动保存');
+      }
     } catch (e) {
-      appLogger.error('保存内容失败', e);
+      debugPrint('保存内容失败: $e');
     }
   }
 
   /// 立即保存所有未保存的更改（用于页面离开时）
   Future<void> _saveAllChanges() async {
+    // 快速检查：如果是临时文章，且标题和内容都为空，直接返回
+    if (_isTempArticle) {
+      final newTitle = _titleController.text.trim();
+      final titleToSave = newTitle.isEmpty ? 'Untitled' : newTitle;
+
+      // 快速检查标题是否为空
+      if (titleToSave.isEmpty || titleToSave == 'Untitled') {
+        // 快速检查内容是否为空（避免转换JSON）
+        final doc = _quillController.document;
+        if (doc.length <= 1) {
+          // 文档长度 <= 1 表示只有空行或完全为空
+          debugPrint('临时文章无内容，直接返回');
+          return;
+        }
+      }
+    }
+
     // 取消所有待执行的定时器
     _saveTitleTimer?.cancel();
     _saveContentTimer?.cancel();
 
-    // 检查标题是否有变化
+    // 检查标题和内容
     final newTitle = _titleController.text.trim();
-    final titleChanged = newTitle != _article.title && newTitle.isNotEmpty;
+    final titleToSave = newTitle.isEmpty ? 'Untitled' : newTitle;
+    final deltaJson = _quillController.document.toDelta().toJson();
+
+    // 如果是临时文章，检查是否有实质内容
+    if (_isTempArticle) {
+      final isTitleEmpty = titleToSave.isEmpty || titleToSave == 'Untitled';
+      final isContentEmpty =
+          deltaJson.isEmpty ||
+          (deltaJson.length == 1 && deltaJson[0]['insert'] == '\n');
+
+      // 如果标题和内容都为空，不创建文章
+      if (isTitleEmpty && isContentEmpty) {
+        debugPrint('临时文章无内容，不保存');
+        return;
+      }
+
+      // 有内容，创建文章
+      try {
+        final now = DateTime.now();
+        final createdArticle = await _activityProvider.createNewArticle();
+        if (createdArticle != null) {
+          // 立即更新文章内容和标题（保存到数据库）
+          await _activityProvider.updateArticleContent(
+            createdArticle.id,
+            title: titleToSave,
+            content: deltaJson,
+          );
+
+          // 更新本地文章对象
+          _article = createdArticle.copyWith(
+            title: titleToSave,
+            content: deltaJson,
+            updatedAt: now,
+          );
+          debugPrint('临时文章已保存到数据库');
+        }
+      } catch (e) {
+        debugPrint('保存临时文章失败: $e');
+      }
+      return;
+    }
+    // 非临时文章的常规保存逻辑
+    // 检查标题是否有变化
+    final titleChanged = titleToSave != _article.title;
 
     // 检查内容是否有变化
-    final deltaJson = _quillController.document.toDelta().toJson();
     bool contentChanged = false;
     if (_article.content is List) {
-      contentChanged = jsonEncode(_article.content) != jsonEncode(deltaJson);
+      // 比较两个 List 是否相同（都进行标准化后再比较）
+      final normalizedOldContent = jsonEncode(
+        _normalizeDeltaJson(_article.content as List),
+      );
+      final normalizedNewContent = jsonEncode(_normalizeDeltaJson(deltaJson));
+      contentChanged = normalizedOldContent != normalizedNewContent;
+    } else if (_article.content == null) {
+      // 旧内容为 null，只要新内容不为空就是变化
+      final normalizedNewContent = _normalizeDeltaJson(deltaJson);
+      contentChanged = normalizedNewContent.isNotEmpty;
     } else {
+      // 旧内容是字符串或其他格式
       contentChanged = true;
     }
 
@@ -409,21 +532,23 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
         final now = DateTime.now();
         await _activityProvider.updateArticleContent(
           _article.id,
-          title: titleChanged ? newTitle : null,
+          title: titleChanged ? titleToSave : null,
           content: contentChanged ? deltaJson : null,
         );
 
         // 同步更新本地文章对象（包含 updatedAt）
         _article = _article.copyWith(
-          title: titleChanged ? newTitle : _article.title,
+          title: titleChanged ? titleToSave : _article.title,
           content: contentChanged ? deltaJson : _article.content,
           updatedAt: now,
         );
 
-        appLogger.info('页面离开时已保存所有更改');
+        debugPrint('页面离开时已保存所有更改');
       } catch (e) {
-        appLogger.error('保存更改失败', e);
+        debugPrint('保存更改失败: $e');
       }
+    } else {
+      debugPrint('页面离开时无需保存，内容未变化');
     }
   }
 
@@ -448,6 +573,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
     super.initState();
     _article = widget.article;
     _titleController = TextEditingController(text: _article.title);
+
+    // 检查是否是临时文章（ID为空）
+    _isTempArticle = _article.id.isEmpty;
 
     // 缓存 Provider 引用
     _activityProvider = context.read<ActivityProvider>();
@@ -492,6 +620,24 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
     // 初始化时加载缓存图片（延迟执行，避免阻塞启动）
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCachedImage();
+
+      // 判断是否是新建文章（标题为空或默认为空，且内容为空）
+      final isNewArticle =
+          (_article.title.isEmpty || _article.title == 'Untitled') &&
+          (_article.content == null || _article.content == '');
+
+      // 如果是新建文章，自动聚焦到编辑器并唤起键盘
+      if (isNewArticle) {
+        // 延迟一点，确保页面已经完全渲染
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (mounted) {
+            _quillFocusNode.requestFocus();
+            setState(() {
+              _isKeyboardVisible = true;
+            });
+          }
+        });
+      }
     });
   }
 
@@ -568,7 +714,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
                   quillEditorGlobalKey: _quillEditorGlobalKey,
                   onTap: () {
                     // 如果当前有自定义面板打开（非键盘和非none状态），点击编辑区唤起键盘
-                    appLogger.debug("ArticleContent onTap: $_currentPanelType");
+                    print("ArticleContent onTap: $_currentPanelType");
                     if (_currentPanelType != PanelType.none &&
                         _currentPanelType != PanelType.keyboard) {
                       _switchPanel(PanelType.keyboard);

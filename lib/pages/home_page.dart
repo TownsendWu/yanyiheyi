@@ -13,6 +13,7 @@ import '../widgets/article_selection_menu.dart';
 import '../widgets/menu_content.dart';
 import '../widgets/draggable_side_sheet.dart';
 import '../data/models/article.dart';
+import 'article_detail_page.dart';
 
 /// 首页
 class HomePage extends StatefulWidget {
@@ -87,6 +88,44 @@ class _HomePageState extends State<HomePage> {
       _handleCancel = handleCancel;
       _handleSelectAll = handleSelectAll;
     });
+  }
+
+  /// 创建新文章
+  Future<void> _createNewArticle() async {
+    // 创建一个临时文章对象，不保存到数据库
+    final now = DateTime.now();
+    final tempArticle = Article(
+      id: '', // 空ID表示这是临时文章
+      title: '',
+      date: now,
+      updatedAt: now,
+      content: null,
+    );
+
+    // 导航到文章详情页
+    if (mounted) {
+      Navigator.push(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              ArticleDetailPage(article: tempArticle),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(0.0, 0.05);
+            const end = Offset.zero;
+            const curve = Curves.easeInOut;
+
+            var tween = Tween(begin: begin, end: end).chain(
+              CurveTween(curve: curve),
+            );
+
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        ),
+      );
+    }
   }
 
   @override
@@ -178,6 +217,7 @@ class _HomePageState extends State<HomePage> {
                     expandedButtonSize: 48,
                     spacing: 12,
                     offsetFromRight: 18,
+                    onMainButtonPressed: _createNewArticle,
                     items: [
                       FABItem(
                         icon: Icons.edit_note,

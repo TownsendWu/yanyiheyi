@@ -145,7 +145,7 @@ class ArticleContentState extends State<ArticleContent> {
             placeHolder: DefaultTextBlockStyle(
               defaultTextStyle.style.copyWith(
                 fontSize: 16,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
               ),
               const HorizontalSpacing(0, 0),
               const VerticalSpacing(0, 0),
