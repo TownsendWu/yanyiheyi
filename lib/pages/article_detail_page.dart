@@ -7,11 +7,13 @@ import '../data/models/article.dart';
 import '../providers/activity_provider.dart';
 import '../widgets/app_toast.dart';
 import '../utils/image_cache_manager.dart';
+import '../utils/quill_utils.dart';
 import 'article_detail/article_app_bar.dart';
 import 'article_detail/article_header.dart';
 import 'article_detail/article_content.dart';
 import 'article_detail/cover_image_manager.dart';
 import 'article_detail/article_menu_manager.dart';
+import 'article_detail/article_ai_panel.dart';
 
 import 'package:chat_bottom_container/chat_bottom_container.dart';
 
@@ -35,7 +37,8 @@ class ArticleDetailPage extends StatefulWidget {
   State<ArticleDetailPage> createState() => _ArticleDetailPageState();
 }
 
-class _ArticleDetailPageState extends State<ArticleDetailPage> {
+class _ArticleDetailPageState extends State<ArticleDetailPage>
+    with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   double? height;
 
@@ -45,6 +48,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
   final FocusNode _titleFocusNode = FocusNode();
   final FocusNode _quillFocusNode = FocusNode();
 
+  // QuillEditor 的 GlobalKey，用于获取光标位置
+  final GlobalKey _quillEditorGlobalKey = GlobalKey();
+
   //面板相关功能
   final ChatBottomPanelContainerController<PanelType> _panelController =
       ChatBottomPanelContainerController<PanelType>();
@@ -52,6 +58,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
   PanelType _currentPanelType = PanelType.none;
   double _keyboardHeight = 300; // 默认键盘高度
   bool _isKeyboardVisible = false; // 键盘是否可见
+
+  // 使用 WidgetsBinding 监听的键盘高度（更准确）
+  double _systemKeyboardHeight = 0.0;
 
   // 本地缓存的图片路径
   String? _cachedImagePath;
@@ -166,6 +175,19 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     }
   }
 
+  // 监听光标位置变化
+  void _onSelectionChanged() {
+    // 只有在编辑器有焦点时才检查滚动
+    if (_quillFocusNode.hasFocus) {
+      // 延迟执行，确保布局已经更新
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          _checkCursorAndScrollIfNeeded();
+        }
+      });
+    }
+  }
+
   // 切换面板
   void _switchPanel(PanelType type) {
     if (_currentPanelType == type) {
@@ -239,11 +261,61 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     _panelController.updatePanelType(ChatBottomPanelType.none);
   }
 
+  /// 检查光标位置并自动滚动，确保光标不被键盘和工具栏遮挡
+  void _checkCursorAndScrollIfNeeded() {
+    final rect = QuillUtils.getCursorPosition(
+      editorKey: _quillEditorGlobalKey,
+      controller: _quillController,
+    );
+
+    if (rect == null) {
+      debugPrint('无法获取光标位置');
+      return;
+    }
+
+    final screenHeight = MediaQuery.of(context).size.height;
+    final keyboardHeight = _systemKeyboardHeight + 40;
+    final keyboardTopY = screenHeight - keyboardHeight;
+
+    // 计算光标底部到键盘顶部的距离
+    final cursorBottomY = rect.bottom;
+    final distanceToKeyboard = keyboardTopY - cursorBottomY;
+
+    debugPrint(
+      '═══════════════════════════════════════\n'
+      '光标位置检查：\n'
+      '  屏幕高度: $screenHeight\n'
+      '  键盘高度: $keyboardHeight\n'
+      '  键盘顶部 Y 坐标: $keyboardTopY\n'
+      '  光标底部 Y 坐标: $cursorBottomY\n'
+      '  光标到键盘的距离: $distanceToKeyboard\n'
+      '  光标完整位置: $rect\n'
+      '═══════════════════════════════════════',
+    );
+
+    // 如果光标到键盘的距离小于 30，需要向上滚动
+    if (distanceToKeyboard < 30) {
+      final scrollOffset = _scrollController.offset;
+      final needToScroll = 30 - distanceToKeyboard;
+
+      debugPrint('光标距离键盘太近，向上滚动 $needToScroll 像素');
+
+      _scrollController.animateTo(
+        scrollOffset + needToScroll,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _article = widget.article;
     _titleController = TextEditingController(text: _article.title);
+
+    // 添加 WidgetsBinding 观察者，监听键盘变化
+    WidgetsBinding.instance.addObserver(this);
 
     // 初始化 QuillController
     _initQuillController();
@@ -268,6 +340,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     // 2. 监听焦点变化，以便刷新 UI 显示工具栏
     _quillFocusNode.addListener(_onFocusChange);
 
+    // 3. 监听光标位置变化，触发滚动检查
+    _quillController.addListener(_onSelectionChanged);
+
     // 初始化时加载缓存图片（延迟执行，避免阻塞启动）
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCachedImage();
@@ -276,6 +351,8 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
 
   @override
   void dispose() {
+    // 移除 WidgetsBinding 观察者
+    WidgetsBinding.instance.removeObserver(this);
     _titleController.dispose();
     _quillController.dispose();
     _titleFocusNode.dispose();
@@ -285,12 +362,21 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
   }
 
   @override
+  void didChangeMetrics() {
+    // 当系统指标变化时（如键盘弹出/收起），获取键盘高度
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    setState(() {
+      if (bottomInset > _systemKeyboardHeight) {
+        _systemKeyboardHeight = bottomInset;
+      }
+      _isKeyboardVisible = bottomInset > 0;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    //获取键盘弹起
-    final bool isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
-    debugPrint("isKeyboardVisible: $isKeyboardVisible");
     final editorBody = CustomScrollView(
       controller: _scrollController,
       slivers: [
@@ -318,17 +404,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
                   controller: _quillController,
                   scrollController: _scrollController,
                   focusNode: _quillFocusNode,
-                  isKeyboardVisible: isKeyboardVisible,
-                  onTap: () {
-                    // 面板状态下点击编辑区，唤起键盘
-                    if (_quillController.readOnly && _currentPanelType != PanelType.none) {
-                      setState(() {
-                        _currentPanelType = PanelType.keyboard;
-                      });
-                      _quillController.readOnly = false;
-                      _panelController.updatePanelType(ChatBottomPanelType.keyboard);
-                    }
-                  },
+                  quillEditorGlobalKey: _quillEditorGlobalKey,
                 ),
                 const SizedBox(height: 20),
               ],
@@ -371,15 +447,16 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
       height: 40,
       decoration: BoxDecoration(
         color: Colors.grey[100],
-        border: Border(
-          top: BorderSide(color: Colors.grey[300]!),
-        ),
+        border: Border(top: BorderSide(color: Colors.grey[300]!)),
       ),
       child: Row(
         children: [
           // 左侧 AI 功能区
           Expanded(
-            child: _buildAIFeatureArea(),
+            child: AIFeatureButton(
+              isSelected: _currentPanelType == PanelType.ai,
+              onTap: () => _switchPanel(PanelType.ai),
+            ),
           ),
 
           // 右侧图标按钮
@@ -388,66 +465,12 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
             isSelected: _currentPanelType == PanelType.formatting,
             onTap: () => _switchPanel(PanelType.formatting),
           ),
-
-          // _ToolbarItem(
-          //   icon: Icons.emoji_emotions_outlined,
-          //   isSelected: _currentPanelType == PanelType.emoji,
-          //   onTap: () => _switchPanel(PanelType.emoji),
-          // ),
-
           _ToolbarItem(
             icon: Icons.more_horiz,
             isSelected: _currentPanelType == PanelType.more,
             onTap: () => _switchPanel(PanelType.more),
           ),
         ],
-      ),
-    );
-  }
-
-  // AI 功能区
-  Widget _buildAIFeatureArea() {
-    return GestureDetector(
-      onTap: () => _switchPanel(PanelType.ai),
-      child: Container(
-        height: 28,
-        margin: const EdgeInsets.only(left: 12, right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: _currentPanelType == PanelType.ai
-                ? Colors.blue[700]!
-                : Colors.grey[300]!,
-            width: _currentPanelType == PanelType.ai ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.auto_awesome,
-              size: 16,
-              color: _currentPanelType == PanelType.ai
-                  ? Colors.blue[700]
-                  : Colors.grey[700],
-            ),
-            const SizedBox(width: 6),
-            Text(
-              'AI 写作助手',
-              style: TextStyle(
-                fontSize: 13,
-                color: _currentPanelType == PanelType.ai
-                    ? Colors.blue[700]
-                    : Colors.grey[700],
-                fontWeight: _currentPanelType == PanelType.ai
-                    ? FontWeight.w600
-                    : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -465,8 +488,6 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
             return _buildFormattingPanel();
           case PanelType.more:
             return _buildMorePanel();
-          case PanelType.emoji:
-            return _buildEmojiPanel();
           case PanelType.ai:
             return _buildAIPanel();
           default:
@@ -573,9 +594,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
             label: '链接',
             onTap: () {
               // TODO: 实现链接插入功能
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('链接功能待实现')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('链接功能待实现')));
             },
           ),
         ],
@@ -598,9 +619,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
             label: '图片',
             onTap: () {
               // TODO: 实现图片插入功能
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('图片功能待实现')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('图片功能待实现')));
             },
           ),
           _FormatButton(
@@ -608,9 +629,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
             label: '文件',
             onTap: () {
               // TODO: 实现文件插入功能
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('文件功能待实现')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('文件功能待实现')));
             },
           ),
           _FormatButton(
@@ -632,9 +653,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
             label: '表格',
             onTap: () {
               // TODO: 实现表格插入功能
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('表格功能待实现')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('表格功能待实现')));
             },
           ),
           _FormatButton(
@@ -658,9 +679,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
             icon: Icons.settings_outlined,
             label: '设置',
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('设置功能待实现')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('设置功能待实现')));
             },
           ),
         ],
@@ -668,137 +689,40 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     );
   }
 
-  // 表情面板
-  Widget _buildEmojiPanel() {
-    return Container(
-      height: _keyboardHeight,
-      padding: const EdgeInsets.all(16),
-      child: GridView.count(
-        crossAxisCount: 8,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        children: const [
-          '😀', '😂', '😍', '🥰', '😎', '🤔', '😴', '🥺',
-          '👍', '👎', '👏', '🙏', '💪', '🤝', '✌️', '🤟',
-          '❤️', '💔', '💯', '✨', '🎉', '🎊', '🔥', '💡',
-          '🌟', '⭐', '☀️', '🌙', '🌈', '🍀', '🌸', '🌺',
-        ]
-            .map((emoji) => GestureDetector(
-                  onTap: () => _insertText(emoji),
-                  child: Center(
-                    child: Text(
-                      emoji,
-                      style: const TextStyle(fontSize: 28),
-                    ),
-                  ),
-                ))
-            .toList(),
-      ),
-    );
-  }
-
   // AI 面板
   Widget _buildAIPanel() {
-    return Container(
+    return AIPanel(
       height: _keyboardHeight,
-      padding: const EdgeInsets.all(16),
-      color: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 标题
-          Row(
-            children: [
-              Icon(
-                Icons.auto_awesome,
-                size: 20,
-                color: Colors.blue[700],
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'AI 写作助手',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[800],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // 功能按钮网格
-          Expanded(
-            child: GridView.count(
-              crossAxisCount: 3,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              children: [
-                _AIActionButton(
-                  icon: Icons.edit_note,
-                  label: '续写',
-                  description: '继续书写内容',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('AI 续写功能待实现')),
-                    );
-                  },
-                ),
-                _AIActionButton(
-                  icon: Icons.summarize,
-                  label: '总结',
-                  description: '总结文章要点',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('AI 总结功能待实现')),
-                    );
-                  },
-                ),
-                _AIActionButton(
-                  icon: Icons.translate,
-                  label: '翻译',
-                  description: '翻译选中文本',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('AI 翻译功能待实现')),
-                    );
-                  },
-                ),
-                _AIActionButton(
-                  icon: Icons.psychology,
-                  label: '润色',
-                  description: '优化文字表达',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('AI 润色功能待实现')),
-                    );
-                  },
-                ),
-                _AIActionButton(
-                  icon: Icons.expand,
-                  label: '扩写',
-                  description: '丰富文章内容',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('AI 扩写功能待实现')),
-                    );
-                  },
-                ),
-                _AIActionButton(
-                  icon: Icons.compress,
-                  label: '缩写',
-                  description: '精简文章内容',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('AI 缩写功能待实现')),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      onContinue: () {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('AI 续写功能待实现')));
+      },
+      onSummarize: () {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('AI 总结功能待实现')));
+      },
+      onTranslate: () {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('AI 翻译功能待实现')));
+      },
+      onPolish: () {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('AI 润色功能待实现')));
+      },
+      onExpand: () {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('AI 扩写功能待实现')));
+      },
+      onContract: () {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('AI 缩写功能待实现')));
+      },
     );
   }
 
@@ -890,70 +814,7 @@ class _FormatButton extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[700],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// AI 操作按钮
-class _AIActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String description;
-  final VoidCallback onTap;
-
-  const _AIActionButton({
-    required this.icon,
-    required this.label,
-    required this.description,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[200]!),
-        ),
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              color: Colors.blue[700],
-              size: 28,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[800],
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              description,
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey[600],
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: Colors.grey[700]),
             ),
           ],
         ),

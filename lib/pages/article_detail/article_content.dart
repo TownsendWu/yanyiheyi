@@ -8,18 +8,18 @@ class ArticleContent extends StatefulWidget {
   final QuillController controller;
   final ScrollController scrollController;
   final bool readOnly; // 可选：通常展示文章内容时可能是只读的
-  final bool isKeyboardVisible;
   final FocusNode focusNode;
   final VoidCallback? onTap; // 新增
+  final GlobalKey quillEditorGlobalKey; // 新增：从外部传入的 GlobalKey
 
   const ArticleContent({
     super.key,
     required this.controller,
     required this.scrollController,
-    required this.isKeyboardVisible,
     required this.focusNode,
     this.readOnly = false,
     this.onTap, // 新增
+    required this.quillEditorGlobalKey, // 新增
   });
 
   @override
@@ -28,7 +28,8 @@ class ArticleContent extends StatefulWidget {
 
 class ArticleContentState extends State<ArticleContent> {
   //quill 相关配置 关键：用于获取 Editor 的 RenderObject
-  final GlobalKey _quillEditorKey = GlobalKey();
+  // 使用外部传入的 GlobalKey
+  GlobalKey get _quillEditorKey => widget.quillEditorGlobalKey;
   // OverlayEntry? _cursorButtonOverlay;
 
   // void _onFocusChange() {
