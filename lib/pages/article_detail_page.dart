@@ -15,6 +15,7 @@ import 'article_detail/article_content.dart';
 import 'article_detail/cover_image_manager.dart';
 import 'article_detail/article_menu_manager.dart';
 import 'article_detail/article_ai_panel.dart';
+import 'article_detail/article_editor_controller.dart';
 
 import 'package:chat_bottom_container/chat_bottom_container.dart';
 
@@ -52,18 +53,14 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
   // QuillEditor 的 GlobalKey，用于获取光标位置
   final GlobalKey _quillEditorGlobalKey = GlobalKey();
 
-  // 自动保存相关
-  Timer? _saveTitleTimer;
-  Timer? _saveContentTimer;
+  // 文章编辑控制器
+  late ArticleEditorController _editorController;
 
   // 应用生命周期监听器
   AppLifecycleListener? _lifecycleListener;
 
   // 缓存 Provider 引用，避免在 dispose 时访问 context
   late ActivityProvider _activityProvider;
-
-  // 标记是否是临时文章（ID为空）
-  bool _isTempArticle = false;
 
   //面板相关功能
   final ChatBottomPanelContainerController<PanelType> _panelController =
@@ -291,267 +288,6 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
     _panelController.updatePanelType(ChatBottomPanelType.none);
   }
 
-  /// 标题变化监听器（防抖保存）
-  void _onTitleChanged() {
-    // 取消之前的定时器
-    _saveTitleTimer?.cancel();
-
-    // 设置新的定时器（1秒后保存）
-    _saveTitleTimer = Timer(const Duration(seconds: 1), () {
-      _saveTitle();
-    });
-  }
-
-  /// 内容变化监听器（防抖保存）
-  void _onContentChanged() {
-    // 取消之前的定时器
-    _saveContentTimer?.cancel();
-
-    // 设置新的定时器（2秒后保存，因为内容变化更频繁）
-    _saveContentTimer = Timer(const Duration(seconds: 2), () {
-      _saveContent();
-    });
-  }
-
-  /// 保存标题
-  Future<void> _saveTitle() async {
-    final newTitle = _titleController.text.trim();
-
-    // 如果标题为空，使用 "Untitled"
-    final titleToSave = newTitle.isEmpty ? 'Untitled' : newTitle;
-
-    // 如果标题没有变化，不保存
-    if (titleToSave == _article.title) return;
-
-    try {
-      final now = DateTime.now();
-
-      // 如果是临时文章，先创建文章
-      if (_isTempArticle) {
-        final createdArticle = await _activityProvider.createNewArticle();
-        if (createdArticle != null) {
-          setState(() {
-            _article = createdArticle.copyWith(
-              title: titleToSave,
-              updatedAt: now,
-            );
-            _isTempArticle = false;
-          });
-          debugPrint('新文章已创建，标题已保存: $titleToSave');
-        } else {
-          AppToast.showError('创建文章失败');
-        }
-      } else {
-        // 已存在的文章，直接更新
-        await _activityProvider.updateArticleContent(
-          _article.id,
-          title: titleToSave,
-        );
-
-        // 更新本地文章对象（包含 updatedAt）
-        setState(() {
-          _article = _article.copyWith(title: titleToSave, updatedAt: now);
-        });
-
-        debugPrint('标题已保存: $titleToSave');
-      }
-    } catch (e) {
-      debugPrint('保存标题失败: $e');
-      AppToast.showError('保存标题失败');
-    }
-  }
-
-  /// 移除 Quill 自动添加的末尾换行符（用于比较）
-  List _normalizeDeltaJson(List deltaJson) {
-    if (deltaJson.isEmpty) return deltaJson;
-
-    // 移除所有 insert 值末尾的 '\n'
-    final result = deltaJson.map((op) {
-      if (op is Map && op.containsKey('insert')) {
-        final insert = op['insert'];
-        if (insert is String && insert.endsWith('\n')) {
-          // 移除末尾的 '\n'
-          final newInsert = insert.substring(0, insert.length - 1);
-          return {"insert": newInsert};
-        }
-      }
-      return op;
-    }).toList();
-    return result;
-  }
-
-  /// 保存内容
-  Future<void> _saveContent() async {
-    try {
-      // 将 Quill Document 转换为 Delta JSON
-      final deltaJson = _quillController.document.toDelta().toJson();
-
-      // 检查内容是否真的变化了
-      bool hasChanged = false;
-      if (_article.content is List) {
-        // 比较两个 List 是否相同（都进行标准化后再比较）
-        final normalizedOldContent = _normalizeDeltaJson(
-          _article.content as List,
-        );
-        final normalizedNewContent = _normalizeDeltaJson(deltaJson);
-        hasChanged =
-            jsonEncode(normalizedOldContent) !=
-            jsonEncode(normalizedNewContent);
-      } else {
-        // 旧格式是字符串，直接比较
-        hasChanged = true;
-      }
-
-      if (!hasChanged) return;
-
-      final now = DateTime.now();
-
-      // 如果是临时文章，先创建文章
-      if (_isTempArticle) {
-        final createdArticle = await _activityProvider.createNewArticle();
-        if (createdArticle != null) {
-          setState(() {
-            _article = createdArticle.copyWith(
-              content: deltaJson,
-              updatedAt: now,
-            );
-            _isTempArticle = false;
-          });
-          debugPrint('新文章已创建，内容已保存');
-        }
-      } else {
-        // 已存在的文章，直接更新
-        await _activityProvider.updateArticleContent(
-          _article.id,
-          content: deltaJson,
-        );
-
-        // 更新本地文章对象（包含 updatedAt）
-        setState(() {
-          _article = _article.copyWith(content: deltaJson, updatedAt: now);
-        });
-
-        debugPrint('内容已自动保存');
-      }
-    } catch (e) {
-      debugPrint('保存内容失败: $e');
-    }
-  }
-
-  /// 立即保存所有未保存的更改（用于页面离开时）
-  Future<void> _saveAllChanges() async {
-    // 快速检查：如果是临时文章，且标题和内容都为空，直接返回
-    if (_isTempArticle) {
-      final newTitle = _titleController.text.trim();
-      final titleToSave = newTitle.isEmpty ? 'Untitled' : newTitle;
-
-      // 快速检查标题是否为空
-      if (titleToSave.isEmpty || titleToSave == 'Untitled') {
-        // 快速检查内容是否为空（避免转换JSON）
-        final doc = _quillController.document;
-        if (doc.length <= 1) {
-          // 文档长度 <= 1 表示只有空行或完全为空
-          debugPrint('临时文章无内容，直接返回');
-          return;
-        }
-      }
-    }
-
-    // 取消所有待执行的定时器
-    _saveTitleTimer?.cancel();
-    _saveContentTimer?.cancel();
-
-    // 检查标题和内容
-    final newTitle = _titleController.text.trim();
-    final titleToSave = newTitle.isEmpty ? 'Untitled' : newTitle;
-    final deltaJson = _quillController.document.toDelta().toJson();
-
-    // 如果是临时文章，检查是否有实质内容
-    if (_isTempArticle) {
-      final isTitleEmpty = titleToSave.isEmpty || titleToSave == 'Untitled';
-      final isContentEmpty =
-          deltaJson.isEmpty ||
-          (deltaJson.length == 1 && deltaJson[0]['insert'] == '\n');
-
-      // 如果标题和内容都为空，不创建文章
-      if (isTitleEmpty && isContentEmpty) {
-        debugPrint('临时文章无内容，不保存');
-        return;
-      }
-
-      // 有内容，创建文章
-      try {
-        final now = DateTime.now();
-        final createdArticle = await _activityProvider.createNewArticle();
-        if (createdArticle != null) {
-          // 立即更新文章内容和标题（保存到数据库）
-          await _activityProvider.updateArticleContent(
-            createdArticle.id,
-            title: titleToSave,
-            content: deltaJson,
-          );
-
-          // 更新本地文章对象
-          _article = createdArticle.copyWith(
-            title: titleToSave,
-            content: deltaJson,
-            updatedAt: now,
-          );
-          debugPrint('临时文章已保存到数据库');
-        }
-      } catch (e) {
-        debugPrint('保存临时文章失败: $e');
-      }
-      return;
-    }
-    // 非临时文章的常规保存逻辑
-    // 检查标题是否有变化
-    final titleChanged = titleToSave != _article.title;
-
-    // 检查内容是否有变化
-    bool contentChanged = false;
-    if (_article.content is List) {
-      // 比较两个 List 是否相同（都进行标准化后再比较）
-      final normalizedOldContent = jsonEncode(
-        _normalizeDeltaJson(_article.content as List),
-      );
-      final normalizedNewContent = jsonEncode(_normalizeDeltaJson(deltaJson));
-      contentChanged = normalizedOldContent != normalizedNewContent;
-    } else if (_article.content == null) {
-      // 旧内容为 null，只要新内容不为空就是变化
-      final normalizedNewContent = _normalizeDeltaJson(deltaJson);
-      contentChanged = normalizedNewContent.isNotEmpty;
-    } else {
-      // 旧内容是字符串或其他格式
-      contentChanged = true;
-    }
-
-    // 如果有变化，立即保存
-    if (titleChanged || contentChanged) {
-      try {
-        final now = DateTime.now();
-        await _activityProvider.updateArticleContent(
-          _article.id,
-          title: titleChanged ? titleToSave : null,
-          content: contentChanged ? deltaJson : null,
-        );
-
-        // 同步更新本地文章对象（包含 updatedAt）
-        _article = _article.copyWith(
-          title: titleChanged ? titleToSave : _article.title,
-          content: contentChanged ? deltaJson : _article.content,
-          updatedAt: now,
-        );
-
-        debugPrint('页面离开时已保存所有更改');
-      } catch (e) {
-        debugPrint('保存更改失败: $e');
-      }
-    } else {
-      debugPrint('页面离开时无需保存，内容未变化');
-    }
-  }
-
   /// 应用生命周期状态变化监听器
   void _onAppStateChanged(AppLifecycleState state) {
     switch (state) {
@@ -559,7 +295,10 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
         // 应用被暂停、失焦或分离时（用户清后台、切换应用等），立即保存
-        _saveAllChanges();
+        _editorController.saveAllImmediately(
+          _titleController.text,
+          _quillController.document.toDelta().toJson(),
+        );
         break;
       case AppLifecycleState.resumed:
       case AppLifecycleState.hidden:
@@ -574,11 +313,20 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
     _article = widget.article;
     _titleController = TextEditingController(text: _article.title);
 
-    // 检查是否是临时文章（ID为空）
-    _isTempArticle = _article.id.isEmpty;
-
     // 缓存 Provider 引用
     _activityProvider = context.read<ActivityProvider>();
+
+    // 初始化文章编辑控制器
+    _editorController = ArticleEditorController(
+      initialArticle: _article,
+      provider: _activityProvider,
+      onArticleUpdated: (article) {
+        setState(() {
+          _article = article;
+        });
+      },
+      onError: (message) => AppToast.showError(message),
+    );
 
     // 添加 WidgetsBinding 观察者，监听键盘变化
     WidgetsBinding.instance.addObserver(this);
@@ -606,11 +354,16 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
     // 2. 监听焦点变化，以便刷新 UI 显示工具栏
     _quillFocusNode.addListener(_onFocusChange);
 
-    // 添加标题变化监听器（防抖保存）
-    _titleController.addListener(_onTitleChanged);
+    // 添加标题变化监听器（使用控制器）
+    _titleController.addListener(() {
+      _editorController.scheduleTitleSave(_titleController.text);
+    });
 
-    // 添加内容变化监听器（防抖保存）
-    _quillController.addListener(_onContentChanged);
+    // 添加内容变化监听器（使用控制器）
+    _quillController.addListener(() {
+      final deltaJson = _quillController.document.toDelta().toJson();
+      _editorController.scheduleContentSave(deltaJson);
+    });
 
     // 监听应用生命周期变化（处理用户清后台的情况）
     _lifecycleListener = AppLifecycleListener(
@@ -647,18 +400,16 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
     WidgetsBinding.instance.removeObserver(this);
 
     // 页面销毁时，立即保存所有未保存的更改
-    _saveAllChanges();
+    _editorController.saveAllImmediately(
+      _titleController.text,
+      _quillController.document.toDelta().toJson(),
+    );
 
-    // 取消自动保存定时器
-    _saveTitleTimer?.cancel();
-    _saveContentTimer?.cancel();
+    // 释放控制器
+    _editorController.dispose();
 
     // 移除生命周期监听器
     _lifecycleListener?.dispose();
-
-    // 移除监听器
-    _titleController.removeListener(_onTitleChanged);
-    _quillController.removeListener(_onContentChanged);
 
     _titleController.dispose();
     _quillController.dispose();
@@ -1041,17 +792,6 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
     );
   }
 
-  // 在光标位置插入文本
-  void _insertText(String text) {
-    final index = _quillController.selection.baseOffset;
-    if (index == -1) return;
-
-    _quillController.document.insert(index, text);
-    _quillController.updateSelection(
-      TextSelection.collapsed(offset: index + text.length),
-      ChangeSource.local,
-    );
-  }
 }
 
 // 工具栏按钮
