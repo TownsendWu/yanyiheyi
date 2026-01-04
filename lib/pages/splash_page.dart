@@ -23,9 +23,17 @@ class _SplashPageState extends State<SplashPage>
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
 
+  // 记录启动页开始显示的时间
+  late DateTime _startTime;
+  // 最小显示时间（2秒，可以根据需要调整）
+  static const _minDisplayDuration = Duration(milliseconds: 1500);
+
   @override
   void initState() {
     super.initState();
+
+    // 记录启动页开始显示的时间
+    _startTime = DateTime.now();
 
     // 初始化动画控制器
     _animationController = AnimationController(
@@ -68,19 +76,32 @@ class _SplashPageState extends State<SplashPage>
   /// 初始化数据并导航到首页
   Future<void> _initializeAndNavigate() async {
     try {
+      // 等待数据加载完成（这是主要的耗时过程）
       final activityProvider = context.read<ActivityProvider>();
-      await activityProvider.preload(); // 等待数据加载完成（这是主要的耗时过程）
+      await activityProvider.preload();
 
       if (mounted) {
-        // 移除固定延时，让初始化过程自然耗时
-        // 可选：设置最小显示时间（例如 1 秒），避免闪屏
-        // await Future.delayed(const Duration(milliseconds: 1000));
+        // 计算已经过去的时间
+        final elapsed = DateTime.now().difference(_startTime);
+
+        // 如果未达到最小显示时间，则等待剩余时间
+        if (elapsed < _minDisplayDuration) {
+          final remainingTime = _minDisplayDuration - elapsed;
+          await Future.delayed(remainingTime);
+        }
 
         _navigateToHome();
       }
     } catch (e) {
       // 如果加载失败，仍然跳转到首页（让首页处理错误状态）
       if (mounted) {
+        // 即使失败也要确保最小显示时间
+        final elapsed = DateTime.now().difference(_startTime);
+        if (elapsed < _minDisplayDuration) {
+          final remainingTime = _minDisplayDuration - elapsed;
+          await Future.delayed(remainingTime);
+        }
+
         _navigateToHome();
       }
     }
