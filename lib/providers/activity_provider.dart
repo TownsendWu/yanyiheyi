@@ -421,7 +421,8 @@ class ActivityProvider extends ChangeNotifier {
     // 重新生成活动数据
     _activities = MockDataService.generateActivityDataFromArticles(_articles);
 
-    notifyListeners();
+    // ⚠️ 不调用 notifyListeners()，避免首页显示空文章
+    // 只有在文章有内容时（通过 updateArticleContent）才通知 UI 刷新
 
     // 3. 异步调用 API（后台执行，不阻塞 UI）
     _articleRepository.createArticle(newArticle).then((result) {

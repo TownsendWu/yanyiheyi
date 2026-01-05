@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 
 /// 应用日志管理类
@@ -15,7 +16,12 @@ class AppLogger {
 
   /// 初始化日志系统
   void init() {
-    _talker = TalkerFlutter.init();
+    _talker = TalkerFlutter.init(
+      settings: TalkerSettings(
+        // 只在 Debug 模式启用日志
+        enabled: !kReleaseMode,
+      ),
+    );
   }
 
   /// 获取 Talker 实例（用于访问 TalkerScreen）

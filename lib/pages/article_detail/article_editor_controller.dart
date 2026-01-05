@@ -8,7 +8,6 @@ import '../../core/logger/app_logger.dart';
 ///
 /// 功能包括:
 /// - 变更检测 (标题和内容)
-/// - 临时文章管理
 /// - 自动保存 (带防抖)
 /// - 与 Provider 的交互
 class ArticleEditorController {
@@ -22,9 +21,7 @@ class ArticleEditorController {
   })  : _currentArticle = initialArticle,
         _provider = provider,
         _onArticleUpdated = onArticleUpdated,
-        _onError = onError {
-    _isTempArticle = initialArticle.id.isEmpty;
-  }
+        _onError = onError;
 
   // 当前文章对象
   Article _currentArticle;
@@ -36,9 +33,6 @@ class ArticleEditorController {
   final Function(Article) _onArticleUpdated;
   final Function(String) _onError;
 
-  // 临时文章标记
-  bool _isTempArticle = false;
-
   // 防抖定时器
   Timer? _titleSaveTimer;
   Timer? _contentSaveTimer;
@@ -47,9 +41,6 @@ class ArticleEditorController {
 
   /// 获取当前文章
   Article get currentArticle => _currentArticle;
-
-  /// 是否是临时文章
-  bool get isTempArticle => _isTempArticle;
 
   // ==================== 变更检测 ====================
 
@@ -71,37 +62,6 @@ class ArticleEditorController {
     final normalizedNewContent = normalizeDeltaJson(newDeltaJson);
 
     return jsonEncode(normalizedOldContent) != jsonEncode(normalizedNewContent);
-  }
-
-  // ==================== 临时文章管理 ====================
-
-  /// 确保文章存在（如果是临时文章，则创建新文章）
-  Future<Article?> ensureArticleExists() async {
-    if (!_isTempArticle) {
-      return _currentArticle;
-    }
-
-    try {
-      final createdArticle = await _provider.createNewArticle();
-      if (createdArticle != null) {
-        _isTempArticle = false;
-        _currentArticle = createdArticle;
-        appLogger.info('临时文章已创建: ${createdArticle.id}');
-        return createdArticle;
-      } else {
-        _onError('创建文章失败');
-        return null;
-      }
-    } catch (e) {
-      appLogger.error('创建临时文章失败', e);
-      _onError('创建文章失败');
-      return null;
-    }
-  }
-
-  /// 标记为临时文章
-  void markAsTempArticle() {
-    _isTempArticle = true;
   }
 
   // ==================== 保存操作（带防抖）====================
@@ -140,37 +100,19 @@ class ArticleEditorController {
     try {
       final now = DateTime.now();
 
-      // 如果是临时文章，先创建文章
-      if (_isTempArticle) {
-        final createdArticle = await ensureArticleExists();
-        if (createdArticle != null) {
-          _currentArticle = createdArticle.copyWith(
-            title: titleToSave,
-            updatedAt: now,
-          );
-          // 立即保存到数据库
-          await _provider.updateArticleContent(
-            createdArticle.id,
-            title: titleToSave,
-          );
-          _notifyArticleUpdated();
-          appLogger.info('新文章已创建，标题已保存: $titleToSave');
-        }
-      } else {
-        // 已存在的文章，直接更新
-        await _provider.updateArticleContent(
-          _currentArticle.id,
-          title: titleToSave,
-        );
+      // 直接更新文章
+      await _provider.updateArticleContent(
+        _currentArticle.id,
+        title: titleToSave,
+      );
 
-        // 更新本地文章对象
-        _currentArticle = _currentArticle.copyWith(
-          title: titleToSave,
-          updatedAt: now,
-        );
-        _notifyArticleUpdated();
-        appLogger.info('标题已保存: $titleToSave');
-      }
+      // 更新本地文章对象
+      _currentArticle = _currentArticle.copyWith(
+        title: titleToSave,
+        updatedAt: now,
+      );
+      _notifyArticleUpdated();
+      appLogger.info('标题已保存: $titleToSave');
     } catch (e) {
       appLogger.error('保存标题失败', e);
       _onError('保存标题失败');
@@ -187,37 +129,19 @@ class ArticleEditorController {
     try {
       final now = DateTime.now();
 
-      // 如果是临时文章，先创建文章
-      if (_isTempArticle) {
-        final createdArticle = await ensureArticleExists();
-        if (createdArticle != null) {
-          _currentArticle = createdArticle.copyWith(
-            content: deltaJson,
-            updatedAt: now,
-          );
-          // 立即保存到数据库
-          await _provider.updateArticleContent(
-            createdArticle.id,
-            content: deltaJson,
-          );
-          _notifyArticleUpdated();
-          appLogger.info('新文章已创建，内容已保存');
-        }
-      } else {
-        // 已存在的文章，直接更新
-        await _provider.updateArticleContent(
-          _currentArticle.id,
-          content: deltaJson,
-        );
+      // 直接更新文章
+      await _provider.updateArticleContent(
+        _currentArticle.id,
+        content: deltaJson,
+      );
 
-        // 更新本地文章对象
-        _currentArticle = _currentArticle.copyWith(
-          content: deltaJson,
-          updatedAt: now,
-        );
-        _notifyArticleUpdated();
-        appLogger.info('内容已自动保存');
-      }
+      // 更新本地文章对象
+      _currentArticle = _currentArticle.copyWith(
+        content: deltaJson,
+        updatedAt: now,
+      );
+      _notifyArticleUpdated();
+      appLogger.info('内容已自动保存');
     } catch (e) {
       appLogger.error('保存内容失败', e);
       _onError('保存内容失败');
@@ -232,40 +156,28 @@ class ArticleEditorController {
 
     final titleToSave = normalizeTitle(title);
 
-    // 快速检查：如果是临时文章，且标题和内容都为空，直接返回
-    if (_isTempArticle) {
-      final isTitleEmpty = titleToSave.isEmpty || titleToSave == 'Untitled';
-      final isContentEmpty =
-          content.isEmpty || (content.length == 1 && content[0]['insert'] == '\n');
+    // 检查是否为空内容
+    final isTitleEmpty = titleToSave.isEmpty || titleToSave == 'Untitled';
+    final isContentEmpty =
+        content.isEmpty || (content.length == 1 && content[0]['insert'] == '\n');
 
-      if (isTitleEmpty && isContentEmpty) {
-        appLogger.info('临时文章无内容，不保存');
-        return;
-      }
-    }
+    // 检查是否有背景图
+    final hasCoverImage = _currentArticle.coverImage != null &&
+        _currentArticle.coverImage!.isNotEmpty;
 
-    // 如果是临时文章，先创建文章
-    if (_isTempArticle) {
-      final createdArticle = await ensureArticleExists();
-      if (createdArticle != null) {
-        // 立即保存标题和内容
-        await _provider.updateArticleContent(
-          createdArticle.id,
-          title: titleToSave,
-          content: content,
-        );
-
-        _currentArticle = createdArticle.copyWith(
-          title: titleToSave,
-          content: content,
-          updatedAt: DateTime.now(),
-        );
-        appLogger.info('临时文章已保存到数据库');
+    // 只有在标题、内容、背景图都为空时，才删除文章
+    if (isTitleEmpty && isContentEmpty && !hasCoverImage) {
+      appLogger.info('文章无内容，删除文章');
+      try {
+        await _provider.deleteArticle(_currentArticle.id);
+        appLogger.info('空文章已删除');
+      } catch (e) {
+        appLogger.error('删除文章失败', e);
       }
       return;
     }
 
-    // 非临时文章的常规保存逻辑
+    // 常规保存逻辑
     final titleChanged = detectTitleChange(titleToSave);
     final contentChanged = detectContentChange(content);
 

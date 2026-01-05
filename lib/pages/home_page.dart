@@ -92,37 +92,31 @@ class _HomePageState extends State<HomePage> {
 
   /// 创建新文章
   Future<void> _createNewArticle() async {
-    // 创建一个临时文章对象，不保存到数据库
-    final now = DateTime.now();
-    final tempArticle = Article(
-      id: '', // 空ID表示这是临时文章
-      title: '',
-      date: now,
-      updatedAt: now,
-      content: null,
-    );
+    final activityProvider = context.read<ActivityProvider>();
+
+    // 直接创建新文章（立即存储到数据库）
+    final newArticle = await activityProvider.createNewArticle();
+
+    if (newArticle == null) {
+      if (mounted) {
+        Fluttertoast.showToast(
+          msg: '创建文章失败',
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.black54,
+          textColor: Colors.white,
+          fontSize: 16,
+        );
+      }
+      return;
+    }
 
     // 导航到文章详情页
     if (mounted) {
       Navigator.push(
         context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              ArticleDetailPage(article: tempArticle),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            const begin = Offset(0.0, 0.05);
-            const end = Offset.zero;
-            const curve = Curves.easeInOut;
-
-            var tween = Tween(begin: begin, end: end).chain(
-              CurveTween(curve: curve),
-            );
-
-            return SlideTransition(
-              position: animation.drive(tween),
-              child: child,
-            );
-          },
+        MaterialPageRoute(
+          builder: (context) => ArticleDetailPage(article: newArticle),
         ),
       );
     }
