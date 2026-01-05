@@ -81,11 +81,15 @@ class ArticleHeader extends StatelessWidget {
 
         const SizedBox(height: 4),
 
-        // 标签
-        if (article.tags.isNotEmpty) ...[
-          _TagsSection(tags: article.tags),
-          const SizedBox(height: 30),
-        ],
+        // 标签区域
+        if (article.tags.isNotEmpty)
+          _TagsSection(tags: article.tags)
+        else
+          // 没有标签时也占位，保持与正文一致的间距
+          const SizedBox(height: 14),
+
+        // 标签区域后的间距
+        const SizedBox(height: 30),
       ],
     );
   }
@@ -125,7 +129,9 @@ class _TagsSection extends StatelessWidget {
                   fontSize: 14,
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                   decoration: TextDecoration.underline,
-                  decorationColor: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                  decorationColor: theme.colorScheme.onSurface.withValues(
+                    alpha: 0.3,
+                  ),
                 ),
               ),
             ),

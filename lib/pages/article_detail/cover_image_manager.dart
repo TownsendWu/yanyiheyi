@@ -319,12 +319,11 @@ class CoverImageManager {
     final activityProvider = context.read<ActivityProvider>();
 
     try {
-      // 获取随机图片 URL（排除当前图片）
-      final randomUrl = UnsplashImages.getRandomImageExcluding(article.coverImage);
+      // 获取随机图片 assets 路径（排除当前图片）
+      final randomAssetPath = UnsplashImages.getRandomImageExcluding(article.coverImage);
 
-      // 下载并缓存图片
-      AppToast.showInfo('正在加载随机图片...');
-      final cachedPath = await imageCacheManager.getImage(randomUrl);
+      // 将 assets 图片复制到本地缓存目录(复用相册的保存流程)
+      final cachedPath = await imageCacheManager.saveAssetImage(randomAssetPath);
 
       if (cachedPath != null) {
         // 更新文章的封面图

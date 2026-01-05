@@ -1,110 +1,584 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
+import 'package:yanyiheyi/core/logger/app_logger.dart';
+import '../../core/theme/app_colors.dart';
+import '../../widgets/app_toast.dart';
 
 /// AI 面板组件
-class AIPanel extends StatelessWidget {
+class AIPanel extends StatefulWidget {
   final double height;
-  final VoidCallback? onContinue;
-  final VoidCallback? onSummarize;
-  final VoidCallback? onTranslate;
-  final VoidCallback? onPolish;
+  final QuillController? controller;
   final VoidCallback? onExpand;
-  final VoidCallback? onContract;
+  final VoidCallback? onRefresh;
+  final VoidCallback? onAdopt;
 
   const AIPanel({
     super.key,
     required this.height,
-    this.onContinue,
-    this.onSummarize,
-    this.onTranslate,
-    this.onPolish,
+    this.controller,
     this.onExpand,
-    this.onContract,
+    this.onRefresh,
+    this.onAdopt,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      padding: const EdgeInsets.all(16),
-      color: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 标题
-          Row(
-            children: [
-              Icon(
-                Icons.auto_awesome,
-                size: 20,
-                color: Colors.blue[700],
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'AI 写作助手',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[800],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+  State<AIPanel> createState() => _AIPanelState();
+}
 
-          // 功能按钮网格
-          Expanded(
-            child: GridView.count(
-              crossAxisCount: 3,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              children: [
-                AIActionButton(
-                  icon: Icons.edit_note,
-                  label: '续写',
-                  description: '继续书写内容',
-                  onTap: onContinue ?? () => _showNotImplemented(context, '续写'),
-                ),
-                AIActionButton(
-                  icon: Icons.summarize,
-                  label: '总结',
-                  description: '总结文章要点',
-                  onTap: onSummarize ?? () => _showNotImplemented(context, '总结'),
-                ),
-                AIActionButton(
-                  icon: Icons.translate,
-                  label: '翻译',
-                  description: '翻译选中文本',
-                  onTap: onTranslate ?? () => _showNotImplemented(context, '翻译'),
-                ),
-                AIActionButton(
-                  icon: Icons.psychology,
-                  label: '润色',
-                  description: '优化文字表达',
-                  onTap: onPolish ?? () => _showNotImplemented(context, '润色'),
-                ),
-                AIActionButton(
-                  icon: Icons.expand,
-                  label: '扩写',
-                  description: '丰富文章内容',
-                  onTap: onExpand ?? () => _showNotImplemented(context, '扩写'),
-                ),
-                AIActionButton(
-                  icon: Icons.compress,
-                  label: '缩写',
-                  description: '精简文章内容',
-                  onTap: onContract ?? () => _showNotImplemented(context, '缩写'),
-                ),
-              ],
+class _AIPanelState extends State<AIPanel> {
+  String _originalText = '';
+  String _aiSuggestion = '';
+  bool _isLoading = false;
+  bool _hasError = false;
+
+  // 记录原始文本的位置信息
+  int _startPos = 0;
+  int _endPos = 0;
+  bool _hasSelection = false; // 是否是从选区获取的文本
+
+  @override
+  void initState() {
+    super.initState();
+    _loadText();
+  }
+
+  @override
+  void didUpdateWidget(AIPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 每次面板打开时重新加载文本
+    if (widget.controller != oldWidget.controller) {
+      _loadText();
+    }
+  }
+
+  /// 加载文本
+  void _loadText() {
+    final controller = widget.controller;
+    if (controller == null) {
+      setState(() {
+        _originalText = '';
+        _aiSuggestion = '';
+        _isLoading = false;
+        _hasError = true;
+        _startPos = 0;
+        _endPos = 0;
+        _hasSelection = false;
+      });
+      return;
+    }
+
+    // 获取选中的文本或光标所在句子
+    final text = _getSelectedTextOrSentence(controller);
+
+    if (text.isEmpty) {
+      setState(() {
+        _originalText = '';
+        _aiSuggestion = '';
+        _isLoading = false;
+        _hasError = true;
+        _startPos = 0;
+        _endPos = 0;
+        _hasSelection = false;
+      });
+    } else {
+      setState(() {
+        _originalText = text;
+        _hasError = false;
+        _isLoading = true; // 立即设置加载状态
+      });
+      // 自动生成 AI 建议
+      _generateAISuggestion();
+    }
+  }
+
+  /// 获取选中的文本或光标所在句子
+  String _getSelectedTextOrSentence(QuillController controller) {
+    final selection = controller.selection;
+    final plainText = controller.document.toPlainText();
+
+    // 1. 如果有选中文本，直接返回
+    if (!selection.isCollapsed && selection.baseOffset >= 0 && selection.extentOffset >= 0) {
+      // 确保索引在有效范围内
+      if (selection.start >= 0 && selection.end <= plainText.length && selection.start < selection.end) {
+        final selectedText = plainText.substring(selection.start, selection.end);
+        if (selectedText.trim().isNotEmpty) {
+          // 记录选区位置
+          _startPos = selection.start;
+          _endPos = selection.end;
+          _hasSelection = true;
+          return selectedText.trim();
+        }
+      }
+    }
+
+    // 2. 没有选中文本，获取光标所在句子
+    if (plainText.trim().isEmpty) {
+      _startPos = 0;
+      _endPos = 0;
+      _hasSelection = false;
+      return '';
+    }
+
+    final cursorOffset = selection.baseOffset;
+
+    // 确保光标位置在有效范围内
+    if (cursorOffset < 0 || cursorOffset > plainText.length) {
+      _startPos = 0;
+      _endPos = 0;
+      _hasSelection = false;
+      return '';
+    }
+
+    // 向前查找句子开始位置
+    int start = cursorOffset;
+    while (start > 0) {
+      start--;
+      if (start - 1 < 0) break; // 防止索引越界
+      final char = plainText[start - 1];
+      if (char == '。' || char == '？' || char == '！' || char == '\n') {
+        break;
+      }
+    }
+
+    // 向后查找句子结束位置
+    int end = cursorOffset;
+    while (end < plainText.length) {
+      final char = plainText[end];
+      if (char == '。' || char == '？' || char == '！' || char == '\n') {
+        end++;
+        break;
+      }
+      end++;
+      // 防止无限循环
+      if (end >= plainText.length) {
+        end = plainText.length;
+        break;
+      }
+    }
+
+    // 确保索引有效
+    if (start < 0) start = 0;
+    if (end > plainText.length) end = plainText.length;
+    if (start >= end) {
+      // 如果 start >= end，说明光标在文本末尾或文本为空
+      // 至少选择光标位置的字符
+      if (cursorOffset < plainText.length) {
+        end = cursorOffset + 1;
+      } else {
+        // 光标在末尾，选择整段文本
+        start = 0;
+        end = plainText.length;
+      }
+    }
+
+    // 记录句子位置
+    _startPos = start;
+    _endPos = end;
+    _hasSelection = false;
+
+    final sentence = plainText.substring(start, end).trim();
+    return sentence;
+  }
+
+  /// 生成 AI 建议（模拟流式输出）
+  Future<void> _generateAISuggestion() async {
+    if (_originalText.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
+      _aiSuggestion = '';
+    });
+
+    // 模拟 AI 扩写建议
+    final suggestions = [
+      '$_originalText（这是 AI 的扩写建议，让内容更加丰富和详细。）',
+      '$_originalText\n\n此外，我们还可以从另一个角度来思考这个问题。',
+      '$_originalText\n\n这个观点非常有趣，值得我们深入探讨。',
+    ];
+
+    final fullSuggestion = (suggestions..shuffle()).first;
+
+    // 模拟网络延迟
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // 打字机效果：逐字输出
+    await _streamText(fullSuggestion);
+  }
+
+  /// 流式输出文本（打字机效果）
+  Future<void> _streamText(String fullText) async {
+    final buffer = StringBuffer();
+    int currentIndex = 0;
+
+    while (currentIndex < fullText.length) {
+      // 每次添加 1-3 个字符，模拟真实的打字速度变化
+      final charsToAdd = 1 + (currentIndex % 3);
+      final nextIndex = (currentIndex + charsToAdd).clamp(0, fullText.length);
+
+      buffer.write(fullText.substring(currentIndex, nextIndex));
+
+      setState(() {
+        _aiSuggestion = buffer.toString();
+      });
+
+      currentIndex = nextIndex;
+
+      // 模拟打字延迟（10-30ms 之间随机）
+      final delay = 10 + (currentIndex % 3) * 10;
+      await Future.delayed(Duration(milliseconds: delay));
+    }
+
+    // 输出完成
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  /// 刷新 AI 建议
+  void _handleRefresh() {
+    if (widget.onRefresh != null) {
+      widget.onRefresh!();
+    } else {
+      _generateAISuggestion();
+    }
+  }
+
+  /// 采用 AI 建议
+  void _handleAdopt() {
+    if (_aiSuggestion.isEmpty) {
+      AppToast.showError('没有可采用的 AI 建议');
+      return;
+    }
+
+    final controller = widget.controller;
+    if (controller == null) {
+      AppToast.showError('编辑器未就绪');
+      return;
+    }
+
+    try {
+      // 使用之前记录的位置信息
+      final plainText = controller.document.toPlainText();
+      final textLength = plainText.length;
+      final document = controller.document;
+      final blockCount = document.length;
+
+      // 详细日志
+      appLogger.info('=== 采用 AI 建议 ===');
+      appLogger.info('文本长度: $textLength');
+      appLogger.info('文档块数量: $blockCount');
+      appLogger.info('记录的位置: $_startPos -> $_endPos');
+      appLogger.info('原始文本: "$_originalText"');
+      appLogger.info('AI 建议: "$_aiSuggestion"');
+
+      // 打印文档结构信息
+      appLogger.info('=== 文档结构 ===');
+      document.toPlainText().split('\n').asMap().forEach((i, line) {
+        appLogger.info('行 $i: "$line"');
+      });
+      appLogger.info('文档 Delta: ${document.toDelta()}');
+
+      // 确保记录的位置仍然有效
+      if (_startPos < 0 || _endPos < 0 || _startPos > _endPos) {
+        appLogger.error('位置关系错误: start=$_startPos, end=$_endPos');
+        AppToast.showError('文本位置已改变，请重新选择');
+        _loadText();
+        return;
+      }
+
+      if (_startPos >= textLength || _endPos > textLength) {
+        appLogger.error('位置超出范围: start=$_startPos, end=$_endPos, length=$textLength');
+        AppToast.showError('文本位置已改变，请重新选择');
+        _loadText();
+        return;
+      }
+
+      // 计算要删除的长度
+      final length = _endPos - _startPos;
+
+      appLogger.info('删除长度: $length');
+
+      // 确保删除的长度有效
+      if (length <= 0) {
+        appLogger.error('删除长度无效: $length');
+        AppToast.showError('文本位置无效');
+        return;
+      }
+
+      if (_startPos + length > textLength) {
+        appLogger.error('删除范围超出: start=$_startPos, length=$length, total=$textLength');
+        AppToast.showError('文本位置无效');
+        return;
+      }
+
+      // 关键修复：确保不会删除换行符
+      // 如果删除范围包含换行符，需要调整删除长度
+      int adjustedLength = length;
+      int checkPos = _startPos + length;
+
+      // 检查删除范围的末尾是否是换行符
+      if (checkPos <= textLength && checkPos > 0) {
+        final charBeforeDelete = plainText[checkPos - 1];
+        appLogger.info('删除范围前的字符: "$charBeforeDelete" (${charBeforeDelete.codeUnitAt(0)})');
+
+        // 如果删除范围末尾的前一个字符是换行符，需要保留它
+        if (charBeforeDelete == '\n' || charBeforeDelete == '\r') {
+          appLogger.info('检测到换行符，调整删除长度');
+          adjustedLength = length - 1;
+        }
+      }
+
+      // 同样检查删除范围的开始位置
+      if (_startPos > 0) {
+        final charAtStart = plainText[_startPos];
+        if (charAtStart == '\n' || charAtStart == '\r') {
+          appLogger.info('删除范围开始位置是换行符，调整位置');
+          // 不应该从换行符开始删除，跳过它
+          final actualStart = _startPos + 1;
+          final actualLength = adjustedLength - 1;
+          if (actualLength > 0) {
+            appLogger.info('执行替换: position=$actualStart, length=$actualLength');
+            controller.replaceText(actualStart, actualLength, _aiSuggestion, null);
+          } else {
+            // 如果调整后长度为0，直接插入
+            appLogger.info('调整后长度为0，执行插入: position=$_startPos');
+            controller.replaceText(_startPos, 0, _aiSuggestion, null);
+          }
+          if (widget.onAdopt != null) {
+            widget.onAdopt!();
+          }
+          AppToast.showSuccess('已采用 AI 建议');
+          return;
+        }
+      }
+
+      // 使用记录的位置进行替换（使用调整后的长度）
+      appLogger.info('执行替换: position=$_startPos, length=$adjustedLength');
+      controller.replaceText(_startPos, adjustedLength, _aiSuggestion, null);
+
+      if (widget.onAdopt != null) {
+        widget.onAdopt!();
+      }
+
+      AppToast.showSuccess('已采用 AI 建议');
+    } catch (e) {
+      AppToast.showError('采用失败');
+      appLogger.error('采用异常: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 获取底部安全区高度
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
+    return GestureDetector(
+      // 消费点击事件，阻止冒泡到外层，避免面板被关闭
+      behavior: HitTestBehavior.opaque,
+      onTap: () {}, // 空回调，消费点击事件
+      child: Container(
+        height: widget.height,
+        color: Colors.white,
+        child: Column(
+          children: [
+            // 中部左右布局
+            Expanded(
+              child: _buildContent(),
             ),
-          ),
-        ],
+
+            // 底部功能按钮
+            Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                bottom: bottomPadding > 0 ? bottomPadding : 16,
+                top: 8, // 与内容区隔开
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // 左侧：扩写按钮
+                  AIActionButton(
+                    icon: Icons.psychology,
+                    label: '扩写',
+                    onTap: widget.onExpand ?? () => _generateAISuggestion(),
+                  ),
+
+                  // 右侧：刷新和采用按钮组
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AIActionButton(
+                        icon: Icons.refresh,
+                        label: '刷新',
+                        onTap: _handleRefresh,
+                      ),
+                      const SizedBox(width: 12),
+                      AIActionButton(
+                        icon: Icons.check_circle,
+                        label: '采用',
+                        onTap: _handleAdopt,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _showNotImplemented(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('AI $feature 功能待实现')),
+  /// 构建内容区域
+  Widget _buildContent() {
+    if (_hasError || _originalText.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            '请先选中文本或开始编辑\n编辑后 AI 将自动提供建议',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        // 左侧：原始文本
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              border: Border(
+                right: BorderSide(color: Colors.grey[300]!),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.short_text, size: 16, color: Colors.grey[600]),
+                    const SizedBox(width: 6),
+                    Text(
+                      '原文',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: IgnorePointer(
+                    child: SingleChildScrollView(
+                      child: Text(
+                        _originalText,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          height: 1.6,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // 右侧：AI 建议
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              border: Border(
+                left: BorderSide(color: Colors.blue[200]!, width: 2),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [
+                          Color(0xFFFF6B6B),
+                          Color(0xFFFFA06B),
+                          Color(0xFFFFD93D),
+                          Color(0xFF6BCF7F),
+                          Color(0xFF4D9DE0),
+                          Color(0xFF9B72FF),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ).createShader(bounds),
+                      child: const Icon(
+                        Icons.auto_awesome,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'AI 建议',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: IgnorePointer(
+                    child: _isLoading
+                        ? const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CircularProgressIndicator(strokeWidth: 2),
+                                SizedBox(height: 12),
+                                Text(
+                                  'AI 正在思考...',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : SingleChildScrollView(
+                            child: Text(
+                              _aiSuggestion,
+                              style: TextStyle(
+                                fontSize: 15,
+                                height: 1.6,
+                                color: Colors.blue[900],
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -132,24 +606,39 @@ class AIFeatureButton extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? Colors.blue[700]! : Colors.grey[300]!,
+            color: isSelected ? AppColors.primary : Colors.grey[300]!,
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.auto_awesome,
-              size: 16,
-              color: isSelected ? Colors.blue[700] : Colors.grey[700],
+            // 使用渐变着色器让图标更炫酷
+            ShaderMask(
+              shaderCallback: (bounds) => const LinearGradient(
+                colors: [
+                  Color(0xFFFF6B6B), // 红色
+                  Color(0xFFFFA06B), // 橙色
+                  Color(0xFFFFD93D), // 黄色
+                  Color(0xFF6BCF7F), // 绿色
+                  Color(0xFF4D9DE0), // 蓝色
+                  Color(0xFF9B72FF), // 紫色
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ).createShader(bounds),
+              child: const Icon(
+                Icons.auto_awesome,
+                size: 16,
+                color: Colors.white, // 这里的颜色会被着色器覆盖
+              ),
             ),
             const SizedBox(width: 6),
             Text(
               '这里写"xxxx"表达会更清晰哦',
               style: TextStyle(
                 fontSize: 13,
-                color: isSelected ? Colors.blue[700] : Colors.grey[700],
+                color: isSelected ? AppColors.primary : Colors.grey[700],
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
@@ -164,14 +653,12 @@ class AIFeatureButton extends StatelessWidget {
 class AIActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
-  final String description;
   final VoidCallback onTap;
 
   const AIActionButton({
     super.key,
     required this.icon,
     required this.label,
-    required this.description,
     required this.onTap,
   });
 
@@ -180,39 +667,33 @@ class AIActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        constraints: const BoxConstraints(
+          minWidth: 60,
+        ),
+        height: 36,
         decoration: BoxDecoration(
           color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: Colors.grey[200]!),
         ),
-        padding: const EdgeInsets.all(12),
-        child: Column(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               icon,
-              color: Colors.blue[700],
-              size: 28,
+              color: AppColors.primary,
+              size: 16,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(width: 4),
             Text(
               label,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: Colors.grey[800],
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              description,
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey[600],
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

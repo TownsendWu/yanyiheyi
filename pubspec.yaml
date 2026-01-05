@@ -41,6 +41,7 @@ flutter:
   assets:
     - assets/icons/icon.svg
     - assets/data/mock_articles.json
+    - assets/images/
 
   fonts:
     - family: LXGWWenKai

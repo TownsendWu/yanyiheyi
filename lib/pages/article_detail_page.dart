@@ -9,6 +9,7 @@ import '../providers/activity_provider.dart';
 import '../widgets/app_toast.dart';
 import '../utils/image_cache_manager.dart';
 import '../core/logger/app_logger.dart';
+import '../core/theme/app_colors.dart';
 import 'article_detail/article_app_bar.dart';
 import 'article_detail/article_header.dart';
 import 'article_detail/article_content.dart';
@@ -174,13 +175,24 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
 
     appLogger.debug('_loadCachedImage: ${_article.coverImage}');
 
-    // 在后台执行，避免阻塞主线程
-    final cachedPath = await _imageCacheManager.getImage(_article.coverImage!);
-    appLogger.debug('_loadCachedImage: $cachedPath');
-    if (mounted) {
-      setState(() {
-        _cachedImagePath = cachedPath;
-      });
+    // 判断是 assets 路径还是网络/本地路径
+    if (_article.coverImage!.startsWith('assets/')) {
+      // assets 路径，直接使用
+      appLogger.debug('_loadCachedImage: 使用 assets 路径');
+      if (mounted) {
+        setState(() {
+          _cachedImagePath = _article.coverImage;
+        });
+      }
+    } else {
+      // 网络/本地路径，需要通过 imageCacheManager 处理
+      final cachedPath = await _imageCacheManager.getImage(_article.coverImage!);
+      appLogger.debug('_loadCachedImage: $cachedPath');
+      if (mounted) {
+        setState(() {
+          _cachedImagePath = cachedPath;
+        });
+      }
     }
   }
 
@@ -759,35 +771,9 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
   Widget _buildAIPanel() {
     return AIPanel(
       height: _keyboardHeight,
-      onContinue: () {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('AI 续写功能待实现')));
-      },
-      onSummarize: () {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('AI 总结功能待实现')));
-      },
-      onTranslate: () {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('AI 翻译功能待实现')));
-      },
-      onPolish: () {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('AI 润色功能待实现')));
-      },
-      onExpand: () {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('AI 扩写功能待实现')));
-      },
-      onContract: () {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('AI 缩写功能待实现')));
+      controller: _quillController,
+      onAdopt: () {
+        // AI 建议已被采用，不需要额外处理
       },
     );
   }
@@ -820,7 +806,7 @@ class _ToolbarItem extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: isSelected ? Colors.blue : Colors.grey[700],
+              color: isSelected ? AppColors.primary : Colors.grey[700],
               size: 20,
             ),
             if (label != null) ...[
@@ -829,7 +815,7 @@ class _ToolbarItem extends StatelessWidget {
                 label!,
                 style: TextStyle(
                   fontSize: 10,
-                  color: isSelected ? Colors.blue : Colors.grey[700],
+                  color: isSelected ? AppColors.primary : Colors.grey[700],
                 ),
               ),
             ],

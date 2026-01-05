@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 /// 图片缓存管理器
 /// 负责下载和缓存网络图片到本地
@@ -206,6 +207,31 @@ class ImageCacheManager {
       return cachedFile.path;
     } catch (e) {
       debugPrint('✗ 保存本地图片失败: $e');
+      return null;
+    }
+  }
+
+  /// 从 assets 加载图片并保存到缓存目录
+  /// 使用 UUID 作为文件名，保留原始文件的扩展名
+  Future<String?> saveAssetImage(String assetPath) async {
+    try {
+      final cacheDir = await _cacheDirectory;
+      final uuid = const Uuid().v4();
+      final extension = _extractImageExtension(assetPath);
+      final fileName = '$uuid$extension';
+      final cachedFile = File('${cacheDir.path}/$fileName');
+
+      // 从 assets 加载图片数据
+      final byteData = await rootBundle.load(assetPath);
+      final bytes = byteData.buffer.asUint8List();
+
+      // 写入到缓存文件
+      await cachedFile.writeAsBytes(bytes);
+
+      debugPrint('✓ Assets 图片已缓存: $assetPath -> ${cachedFile.path}');
+      return cachedFile.path;
+    } catch (e) {
+      debugPrint('✗ 保存 assets 图片失败: $e');
       return null;
     }
   }
