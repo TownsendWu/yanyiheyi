@@ -3,6 +3,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:yanyiheyi/core/logger/app_logger.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/app_toast.dart';
+import 'ai_cache_manager.dart';
 
 /// AI 面板组件
 class AIPanel extends StatefulWidget {
@@ -21,11 +22,19 @@ class AIPanel extends StatefulWidget {
     this.onAdopt,
   });
 
+  /// 清空 AI 缓存（公开静态方法供外部调用）
+  static void clearCache() {
+    _AIPanelState._cacheManager.clear();
+  }
+
   @override
   State<AIPanel> createState() => _AIPanelState();
 }
 
 class _AIPanelState extends State<AIPanel> {
+  // AI 缓存管理器（单例模式）
+  static final AICacheManager _cacheManager = AICacheManager();
+
   String _originalText = '';
   String _aiSuggestion = '';
   bool _isLoading = false;
@@ -80,13 +89,45 @@ class _AIPanelState extends State<AIPanel> {
         _endPos = 0;
         _hasSelection = false;
       });
+      return;
+    }
+
+    setState(() {
+      _originalText = text;
+      _hasError = false;
+    });
+
+    // 检查缓存逻辑
+    appLogger.info('=== 检查 AI 缓存 ===');
+    appLogger.info('当前原文: "$text"');
+
+    if (_cacheManager.hasCache(text)) {
+      // 有缓存
+      appLogger.info('发现缓存');
+
+      if (_cacheManager.hasSuggestion(text)) {
+        // 有 AI 建议，直接显示
+        final cachedSuggestion = _cacheManager.getCachedSuggestion(text)!;
+        appLogger.info('使用缓存的 AI 建议: "$cachedSuggestion"');
+        setState(() {
+          _aiSuggestion = cachedSuggestion;
+          _isLoading = false;
+        });
+      } else {
+        // 有缓存但无 AI 建议，生成新建议
+        appLogger.info('缓存存在但无 AI 建议，开始生成');
+        setState(() {
+          _isLoading = true;
+        });
+        _generateAISuggestion();
+      }
     } else {
+      // 无缓存，创建并生成
+      appLogger.info('无缓存，创建新缓存并生成 AI 建议');
+      _cacheManager.updateOriginalText(text);
       setState(() {
-        _originalText = text;
-        _hasError = false;
-        _isLoading = true; // 立即设置加载状态
+        _isLoading = true;
       });
-      // 自动生成 AI 建议
       _generateAISuggestion();
     }
   }
@@ -181,7 +222,7 @@ class _AIPanelState extends State<AIPanel> {
   }
 
   /// 生成 AI 建议（模拟流式输出）
-  Future<void> _generateAISuggestion() async {
+  Future<void> _generateAISuggestion({bool forceRefresh = false}) async {
     if (_originalText.isEmpty) return;
 
     setState(() {
@@ -194,6 +235,13 @@ class _AIPanelState extends State<AIPanel> {
       '$_originalText（这是 AI 的扩写建议，让内容更加丰富和详细。）',
       '$_originalText\n\n此外，我们还可以从另一个角度来思考这个问题。',
       '$_originalText\n\n这个观点非常有趣，值得我们深入探讨。',
+      '$_originalText\n\n从实践角度来看，这一观点具有重要的指导意义。',
+      '$_originalText\n\n可以说，这不仅仅是一个简单的问题，而是涉及到多个层面的思考。',
+      '$_originalText\n\n通过进一步分析，我们可以发现更多有价值的细节。',
+      '$_originalText\n\n在实际应用中，这种方法往往能取得意想不到的效果。',
+      '$_originalText\n\n值得注意的是，这个观点背后蕴含着深刻的哲理。',
+      '$_originalText\n\n结合具体案例来看，这一论断具有更强的说服力。',
+      '$_originalText\n\n从长远发展来看，这种思路将会带来更多可能性。',
     ];
 
     final fullSuggestion = (suggestions..shuffle()).first;
@@ -203,6 +251,20 @@ class _AIPanelState extends State<AIPanel> {
 
     // 打字机效果：逐字输出
     await _streamText(fullSuggestion);
+
+    // 生成完成后更新缓存
+    if (forceRefresh) {
+      // 强制刷新：更新缓存
+      appLogger.info('强制刷新，更新缓存');
+      _cacheManager.updateSuggestion(_originalText, fullSuggestion);
+    } else {
+      // 正常生成：更新缓存
+      appLogger.info('AI 建议生成完成，更新缓存');
+      _cacheManager.updateSuggestion(_originalText, fullSuggestion);
+    }
+
+    // 打印缓存统计
+    appLogger.info('缓存统计: ${_cacheManager.getStats()}');
   }
 
   /// 流式输出文本（打字机效果）
@@ -239,7 +301,9 @@ class _AIPanelState extends State<AIPanel> {
     if (widget.onRefresh != null) {
       widget.onRefresh!();
     } else {
-      _generateAISuggestion();
+      // 强制刷新，忽略缓存
+      appLogger.info('用户点击刷新按钮，强制生成新建议');
+      _generateAISuggestion(forceRefresh: true);
     }
   }
 

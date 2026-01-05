@@ -428,6 +428,10 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
     _titleFocusNode.dispose();
     _quillFocusNode.dispose();
     _scrollController.dispose();
+
+    // 清空 AI 缓存（使用静态单例实例）
+    AIPanel.clearCache();
+
     super.dispose();
   }
 
