@@ -538,6 +538,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
             child: AIFeatureButton(
               isSelected: _currentPanelType == PanelType.ai,
               onTap: () => _switchPanel(PanelType.ai),
+              controller: _quillController,
             ),
           ),
 
@@ -547,11 +548,11 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
             isSelected: _currentPanelType == PanelType.formatting,
             onTap: () => _switchPanel(PanelType.formatting),
           ),
-          _ToolbarItem(
-            icon: Icons.more_horiz,
-            isSelected: _currentPanelType == PanelType.more,
-            onTap: () => _switchPanel(PanelType.more),
-          ),
+          // _ToolbarItem(
+          //   icon: Icons.more_horiz,
+          //   isSelected: _currentPanelType == PanelType.more,
+          //   onTap: () => _switchPanel(PanelType.more),
+          // ),
         ],
       ),
     );

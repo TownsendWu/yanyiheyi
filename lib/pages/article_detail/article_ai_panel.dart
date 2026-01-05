@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:yanyiheyi/core/logger/app_logger.dart';
@@ -647,21 +648,479 @@ class _AIPanelState extends State<AIPanel> {
   }
 }
 
+/// 带呼吸动画的图标组件
+class _BreathingIcon extends StatefulWidget {
+  final IconData icon;
+  final double size;
+
+  const _BreathingIcon({
+    required this.icon,
+    this.size = 16,
+  });
+
+  @override
+  State<_BreathingIcon> createState() => _BreathingIconState();
+}
+
+class _BreathingIconState extends State<_BreathingIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+
+    // 缩放动画：从 1.0 到 1.2 再到 1.0
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.2,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    // 透明度动画：从 1.0 到 0.6 再到 1.0
+    _opacityAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.6,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    // 循环播放动画
+    _controller.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: Opacity(
+            opacity: _opacityAnimation.value,
+            child: child,
+          ),
+        );
+      },
+      child: ShaderMask(
+        shaderCallback: (bounds) => const LinearGradient(
+          colors: [
+            Color(0xFFFF6B6B), // 红色
+            Color(0xFFFFA06B), // 橙色
+            Color(0xFFFFD93D), // 黄色
+            Color(0xFF6BCF7F), // 绿色
+            Color(0xFF4D9DE0), // 蓝色
+            Color(0xFF9B72FF), // 紫色
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ).createShader(bounds),
+        child: Icon(
+          widget.icon,
+          size: widget.size,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
 /// AI 功能按钮组件（用于工具栏）
-class AIFeatureButton extends StatelessWidget {
+class AIFeatureButton extends StatefulWidget {
   final bool isSelected;
   final VoidCallback onTap;
+  final QuillController? controller;
 
   const AIFeatureButton({
     super.key,
     required this.isSelected,
     required this.onTap,
+    this.controller,
   });
+
+  @override
+  State<AIFeatureButton> createState() => _AIFeatureButtonState();
+}
+
+class _AIFeatureButtonState extends State<AIFeatureButton>
+    with WidgetsBindingObserver {
+  // 显示的建议文字
+  String _suggestionText = '让AI来帮你';
+
+  // 停顿检测定时器
+  Timer? _typingTimer;
+
+  // 上次生成完成的时间戳
+  DateTime? _lastGenerationTime;
+
+  // 当前生成任务的 Future，用于取消
+  Future<void>? _currentGenerationFuture;
+
+  // 防抖定时器
+  Timer? _debounceTimer;
+
+  // 是否正在生成
+  bool _isGenerating = false;
+
+  // 生命周期监听器
+  AppLifecycleListener? _lifecycleListener;
+
+  // 记录上次的文档内容，用于检测是否真正变化
+  String _lastDocumentContent = '';
+
+  // 记录上次的光标位置，用于检测光标移动
+  int _lastCursorPosition = -1;
+
+  // 标记在生成过程中是否有新的输入
+  bool _hasNewInputDuringGeneration = false;
+
+  // 常量配置
+  static const Duration _typingPauseDuration = Duration(seconds: 5); // 停顿检测时长
+  static const Duration _cooldownDuration = Duration(seconds: 10); // 冷却时长
+  static const Duration _debounceDuration = Duration(milliseconds: 300); // 防抖时长
+
+  @override
+  void initState() {
+    super.initState();
+
+    appLogger.info('AIFeatureButton: initState, controller = ${widget.controller != null}');
+
+    // 监听应用生命周期变化
+    _lifecycleListener = AppLifecycleListener(
+      onStateChange: _onAppStateChanged,
+    );
+
+    // 监听编辑器变化
+    if (widget.controller != null) {
+      // 初始化记录当前文档内容
+      _lastDocumentContent = widget.controller!.document.toPlainText();
+
+      // 初始化记录当前光标位置
+      _lastCursorPosition = widget.controller!.selection.baseOffset;
+
+      widget.controller!.addListener(_onDocumentChanged);
+      appLogger.info('AIFeatureButton: 已监听 QuillController');
+      appLogger.info('AIFeatureButton: 初始文档长度 = ${_lastDocumentContent.length}');
+      appLogger.info('AIFeatureButton: 初始光标位置 = $_lastCursorPosition');
+
+      // 启动初始停顿检测（无论文档是否为空）
+      _startInitialTypingTimer();
+    } else {
+      appLogger.warning('AIFeatureButton: controller 为 null，无法监听文档变化');
+    }
+  }
+
+  @override
+  void didUpdateWidget(AIFeatureButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // 如果 controller 发生变化，重新监听
+    if (widget.controller != oldWidget.controller) {
+      oldWidget.controller?.removeListener(_onDocumentChanged);
+      widget.controller?.addListener(_onDocumentChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    _lifecycleListener?.dispose();
+    _debounceTimer?.cancel();
+    _typingTimer?.cancel();
+    widget.controller?.removeListener(_onDocumentChanged);
+    _cancelGeneration();
+    super.dispose();
+  }
+
+  /// 应用生命周期状态变化监听器
+  void _onAppStateChanged(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        // 取消生成任务
+        _cancelGeneration();
+        // 清空临时文字，重置为默认文字
+        if (mounted) {
+          setState(() {
+            _suggestionText = '让AI来帮你';
+            _isGenerating = false;
+          });
+        }
+        // 取消所有定时器
+        _typingTimer?.cancel();
+        _debounceTimer?.cancel();
+        break;
+      case AppLifecycleState.resumed:
+      case AppLifecycleState.hidden:
+        // 无需特殊处理
+        break;
+    }
+  }
+
+  /// 监听文档变化（带防抖）
+  void _onDocumentChanged() {
+    final currentContent = widget.controller?.document.toPlainText() ?? '';
+    final currentCursorPosition = widget.controller?.selection.baseOffset ?? -1;
+
+    // 检测是否有变化（内容变化 或 光标移动）
+    final contentChanged = currentContent != _lastDocumentContent;
+    final cursorMoved = currentCursorPosition != _lastCursorPosition;
+
+    if (contentChanged || cursorMoved) {
+      if (contentChanged) {
+        appLogger.info('AIFeatureButton: 文档内容已变化，长度从 ${_lastDocumentContent.length} 变为 ${currentContent.length}');
+        _lastDocumentContent = currentContent;
+      }
+
+      if (cursorMoved) {
+        appLogger.info('AIFeatureButton: 光标位置已移动，从 $_lastCursorPosition 移动到 $currentCursorPosition');
+        _lastCursorPosition = currentCursorPosition;
+      }
+
+      // 取消之前的防抖定时器
+      _debounceTimer?.cancel();
+
+      // 如果正在生成，标记有新输入，但继续生成
+      // 冷却时间以生成完成的时间为准
+      if (_isGenerating) {
+        appLogger.info('AIFeatureButton: 正在生成中，标记有新输入');
+        _hasNewInputDuringGeneration = true;
+        return;
+      }
+
+      // 启动新的防抖定时器
+      _debounceTimer = Timer(_debounceDuration, () {
+        _restartTypingTimer();
+      });
+    }
+  }
+
+  /// 重启停顿检测定时器
+  void _restartTypingTimer() {
+    // 取消之前的定时器
+    _typingTimer?.cancel();
+
+    // 启动新的定时器
+    _typingTimer = Timer(_typingPauseDuration, () {
+      _onUserPaused();
+    });
+  }
+
+  /// 启动初始停顿检测定时器
+  void _startInitialTypingTimer() {
+    // 清理旧定时器
+    _debounceTimer?.cancel();
+    _typingTimer?.cancel();
+
+    appLogger.info('AIFeatureButton: 启动初始停顿检测定时器（10秒）');
+
+    // 直接启动10秒停顿检测（不需要防抖）
+    _typingTimer = Timer(_typingPauseDuration, () {
+      appLogger.info('AIFeatureButton: 初始停顿检测触发');
+      _onUserPaused();
+    });
+  }
+
+  /// 用户停顿后的处理
+  void _onUserPaused() {
+    // 检查冷却时间
+    if (_lastGenerationTime != null) {
+      final timeSinceLastGeneration = DateTime.now().difference(_lastGenerationTime!);
+      if (timeSinceLastGeneration < _cooldownDuration) {
+        final remainingSeconds = _cooldownDuration.inSeconds - timeSinceLastGeneration.inSeconds;
+        appLogger.info('距离上次生成不足${_cooldownDuration.inSeconds}秒，还需等待 $remainingSeconds 秒，跳过本次生成');
+
+        // 关键修复：即使跳过本次生成，也要重新启动停顿检测
+        // 这样冷却时间过后，用户停顿5秒后就能再次触发
+        appLogger.info('AIFeatureButton: 冷却中，重新启动停顿检测');
+        _typingTimer = Timer(Duration(milliseconds: 500), () {
+          _onUserPaused();
+        });
+
+        return;
+      }
+    }
+
+    // 开始生成建议
+    _generateSuggestion();
+  }
+
+  /// 取消当前生成任务
+  void _cancelGeneration() {
+    _currentGenerationFuture = null;
+    _isGenerating = false;
+  }
+
+  /// 生成 AI 建议
+  Future<void> _generateSuggestion() async {
+    if (_isGenerating) return;
+
+    final controller = widget.controller;
+    if (controller == null) return;
+
+    setState(() {
+      _isGenerating = true;
+      _hasNewInputDuringGeneration = false; // 重置标记
+      _suggestionText = '';
+    });
+
+    try {
+      // 获取生成内容
+      final suggestion = await _generateAISuggestionContent(controller);
+
+      // 流式显示
+      await _streamText(suggestion);
+
+      // 记录生成完成时间
+      _lastGenerationTime = DateTime.now();
+
+      setState(() {
+        _isGenerating = false;
+      });
+
+      // 检查生成过程中是否有新输入
+      if (_hasNewInputDuringGeneration) {
+        appLogger.info('AIFeatureButton: 生成过程中检测到新输入，重新启动停顿检测');
+        _hasNewInputDuringGeneration = false;
+        // 重新启动停顿检测定时器
+        _debounceTimer?.cancel();
+        _debounceTimer = Timer(_debounceDuration, () {
+          _restartTypingTimer();
+        });
+      }
+    } catch (e) {
+      appLogger.error('生成建议失败: $e');
+      setState(() {
+        _suggestionText = '让AI来帮你';
+        _isGenerating = false;
+        _hasNewInputDuringGeneration = false;
+      });
+    }
+  }
+
+  /// 生成 AI 建议内容（预留接口）
+  Future<String> _generateAISuggestionContent(QuillController controller) async {
+    // TODO: 接入真实 AI API
+    // 这里使用模拟生成，后续可以替换为真实 API 调用
+
+    final plainText = controller.document.toPlainText();
+    final selection = controller.selection;
+
+    // 场景1：光标处有选中文本
+    if (!selection.isCollapsed &&
+        selection.baseOffset >= 0 &&
+        selection.extentOffset >= 0 &&
+        selection.start < selection.end &&
+        selection.end <= plainText.length) {
+      final selectedText = plainText.substring(selection.start, selection.end);
+      return _generateForSelectedText(selectedText);
+    }
+
+    // 场景2：光标处无内容，但文章有内容
+    if (plainText.trim().isNotEmpty && selection.baseOffset >= 0) {
+      final cursorPos = selection.baseOffset;
+      final context = _getContextAroundPosition(plainText, cursorPos);
+      return _generateForContext(context);
+    }
+
+    // 场景3：文章完全为空
+    return _generateForEmptyDocument();
+  }
+
+  /// 场景1：针对选中文本生成建议
+  Future<String> _generateForSelectedText(String selectedText) async {
+    // TODO: 接入真实 AI API，将 selectedText 发送给 AI
+    final suggestions = [
+      '这段表述可以更精炼',
+      '建议增加具体数据支撑',
+      '这里用词可以更准确',
+      '逻辑可以更清晰',
+      '可以增加举例说明',
+    ];
+    suggestions.shuffle();
+    return suggestions.first;
+  }
+
+  /// 场景2：针对上下文生成建议
+  Future<String> _generateForContext(String context) async {
+    // TODO: 接入真实 AI API，将 context 发送给 AI
+    final suggestions = [
+      '此处可以展开论述',
+      '建议补充相关背景',
+      '可以增加过渡句',
+      '这个观点很有深度',
+      '建议进一步阐述',
+    ];
+    suggestions.shuffle();
+    return suggestions.first;
+  }
+
+  /// 场景3：空文档生成建议
+  Future<String> _generateForEmptyDocument() async {
+    // TODO: 接入真实 AI API
+    final suggestions = [
+      '开始写作吧',
+      '记录你的想法',
+      '写下第一句话',
+      '创意从这里开始',
+    ];
+    suggestions.shuffle();
+    return suggestions.first;
+  }
+
+  /// 获取光标周围的上下文
+  String _getContextAroundPosition(String text, int cursorPos) {
+    const contextLength = 100; // 上下文长度
+    int start = (cursorPos - contextLength).clamp(0, text.length);
+    int end = (cursorPos + contextLength).clamp(0, text.length);
+    return text.substring(start, end);
+  }
+
+  /// 流式显示文本（打字机效果）
+  Future<void> _streamText(String fullText) async {
+    final buffer = StringBuffer();
+    int currentIndex = 0;
+
+    while (currentIndex < fullText.length && _isGenerating) {
+      final charsToAdd = 1 + (currentIndex % 2);
+      final nextIndex = (currentIndex + charsToAdd).clamp(0, fullText.length);
+
+      buffer.write(fullText.substring(currentIndex, nextIndex));
+
+      if (mounted) {
+        setState(() {
+          _suggestionText = buffer.toString();
+        });
+      }
+
+      currentIndex = nextIndex;
+      await Future.delayed(const Duration(milliseconds: 30));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Container(
         height: 28,
         margin: const EdgeInsets.only(left: 12, right: 8),
@@ -670,40 +1129,31 @@ class AIFeatureButton extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? AppColors.primary : Colors.grey[300]!,
-            width: isSelected ? 2 : 1,
+            color: widget.isSelected ? AppColors.primary : Colors.grey[300]!,
+            width: widget.isSelected ? 2 : 1,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 使用渐变着色器让图标更炫酷
-            ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
-                colors: [
-                  Color(0xFFFF6B6B), // 红色
-                  Color(0xFFFFA06B), // 橙色
-                  Color(0xFFFFD93D), // 黄色
-                  Color(0xFF6BCF7F), // 绿色
-                  Color(0xFF4D9DE0), // 蓝色
-                  Color(0xFF9B72FF), // 紫色
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ).createShader(bounds),
-              child: const Icon(
-                Icons.auto_awesome,
-                size: 16,
-                color: Colors.white, // 这里的颜色会被着色器覆盖
-              ),
+            // 使用带呼吸动画的图标
+            const _BreathingIcon(
+              icon: Icons.auto_awesome,
+              size: 16,
             ),
             const SizedBox(width: 6),
-            Text(
-              '这里写"xxxx"表达会更清晰哦',
-              style: TextStyle(
-                fontSize: 13,
-                color: isSelected ? AppColors.primary : Colors.grey[700],
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            Flexible(
+              child: Text(
+                _suggestionText.isEmpty
+                    ? 'AI 正在思考...'
+                    : _suggestionText,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: widget.isSelected ? AppColors.primary : Colors.grey[700],
+                  fontWeight: widget.isSelected ? FontWeight.w600 : FontWeight.normal,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
