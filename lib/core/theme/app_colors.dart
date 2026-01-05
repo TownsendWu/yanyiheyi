@@ -18,7 +18,7 @@ class AppColors {
   static const lightBackground = Color(0xFFF4F5F5);
 
   /// 浅色主题 - 表面色（卡片、对话框等）
-  static const lightSurface = Color(0xFFFFFFFF);
+  static const lightSurface = Color(0xFFF4F5F5);
 
   /// 浅色主题 - AppBar 背景色
   static const lightAppBarBackground = Color(0xFFF4F5F5);
@@ -37,7 +37,7 @@ class AppColors {
   static const darkBackground = Color(0xFF121212);
 
   /// 深色主题 - 表面色（卡片、对话框等）
-  static const darkSurface = Color(0xFF1E1E1E);
+  static const darkSurface = Color(0xFF121212);
 
   /// 深色主题 - AppBar 背景色
   static const darkAppBarBackground = Color(0xFF1E1E1E);

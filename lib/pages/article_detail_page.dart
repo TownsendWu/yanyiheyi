@@ -560,6 +560,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
 
   // 构建底部面板容器
   Widget _buildPanelContainer() {
+    final theme = Theme.of(context);
     return ChatBottomPanelContainer<PanelType>(
       controller: _panelController,
       inputFocusNode: _quillFocusNode,
@@ -605,7 +606,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage>
             break;
         }
       },
-      panelBgColor: Colors.white,
+      panelBgColor: theme.colorScheme.surface,
       // 记录键盘高度，用于自定义面板
       changeKeyboardPanelHeight: (keyboardHeight) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
