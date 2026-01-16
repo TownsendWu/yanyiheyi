@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/user_provider.dart';
+import '../providers/auth_provider.dart';
 import 'theme_mode_button.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -48,6 +49,14 @@ class _LogoWithNickname extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+
+    // 未登录时只显示 Logo
+    if (!authProvider.isAuthenticated) {
+      return const _LogoWithAnimation();
+    }
+
+    // 已登录时显示 Logo + 昵称
     final userProvider = context.watch<UserProvider>();
     final userProfile = userProvider.userProfile;
 
@@ -74,6 +83,7 @@ class _UserAvatarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
     final userProvider = context.watch<UserProvider>();
     final userProfile = userProvider.userProfile;
 
@@ -83,12 +93,18 @@ class _UserAvatarButton extends StatelessWidget {
         onPressed: onMenuPressed,
         icon: CircleAvatar(
           radius: 16,
-          backgroundColor: Colors.transparent,
-          backgroundImage: userProfile.avatar != null
+          backgroundColor: authProvider.isAuthenticated
+              ? null
+              : Colors.transparent,
+          backgroundImage: (authProvider.isAuthenticated && userProfile.avatar != null)
               ? NetworkImage(userProfile.avatar!)
               : null,
-          child: userProfile.avatar == null
-              ? const Icon(Icons.person, size: 20, color: Colors.grey)
+          child: (!authProvider.isAuthenticated || userProfile.avatar == null)
+              ? Icon(
+                  Icons.person,
+                  size: 20,
+                  color: authProvider.isAuthenticated ? Colors.white : Colors.grey,
+                )
               : null,
         ),
       ),

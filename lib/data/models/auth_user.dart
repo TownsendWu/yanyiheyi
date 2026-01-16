@@ -113,6 +113,9 @@ enum LoginType {
   /// 抖音登录
   douyin,
 
+  /// 手机号登录
+  phone,
+
   /// 游客模式
   guest,
 }

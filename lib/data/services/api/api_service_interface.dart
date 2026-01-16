@@ -17,6 +17,12 @@ abstract class ApiService {
   /// 抖音登录
   Future<NetworkResult<LoginResult>> loginWithDouyin(String code);
 
+  /// 手机号登录
+  Future<NetworkResult<LoginResult>> loginWithPhone(String phone, String code);
+
+  /// 发送验证码
+  Future<NetworkResult<void>> sendVerificationCode(String phone);
+
   /// 刷新 Token
   Future<NetworkResult<AuthUser>> refreshToken(String refreshToken);
 

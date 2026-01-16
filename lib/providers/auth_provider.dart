@@ -145,6 +145,45 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 手机号登录
+  Future<bool> loginWithPhone(String phone, String code) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      // TODO: 调用手机号登录 API
+      final result = await _apiService.loginWithPhone(phone, code);
+
+      if (result.isSuccess) {
+        _currentUser = result.getData?.user;
+        await _saveAuthUser();
+        return true;
+      } else {
+        _error = result.getError;
+        return false;
+      }
+    } catch (e) {
+      _error = AppErrorFactory.fromException(e);
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// 发送验证码
+  Future<bool> sendVerificationCode(String phone) async {
+    try {
+      // TODO: 调用发送验证码 API
+      // await _apiService.sendVerificationCode(phone);
+      return true;
+    } catch (e) {
+      _error = AppErrorFactory.fromException(e);
+      return false;
+    }
+  }
+
   // ==================== 登出方法 ====================
 
   /// 登出

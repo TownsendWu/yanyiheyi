@@ -64,6 +64,46 @@ class MockApiService implements ApiService {
   }
 
   @override
+  Future<NetworkResult<LoginResult>> loginWithPhone(String phone, String code) async {
+    await _delay();
+
+    try {
+      // 模拟手机号登录成功
+      final user = AuthUser.authenticated(
+        userId: 'phone_user_${DateTime.now().millisecondsSinceEpoch}',
+        accessToken: 'mock_access_token_${DateTime.now().millisecondsSinceEpoch}',
+        refreshToken: 'mock_refresh_token',
+        tokenExpiresAt: DateTime.now().add(const Duration(days: 30)),
+        loginType: LoginType.phone,
+      );
+
+      return Success(LoginResult.success(user));
+    } catch (e) {
+      return Failure(AppErrorFactory.fromException(e));
+    }
+  }
+
+  @override
+  Future<NetworkResult<void>> sendVerificationCode(String phone) async {
+    await _delay();
+
+    try {
+      // 模拟发送验证码成功
+      appLogger.logRequest('POST', '/api/auth/sms/send', body: {
+        'phone': phone,
+      });
+
+      appLogger.logResponse('/api/auth/sms/send', 200, data: {
+        'message': '验证码已发送',
+      });
+
+      return const Success(null);
+    } catch (e) {
+      return Failure(AppErrorFactory.fromException(e));
+    }
+  }
+
+  @override
   Future<NetworkResult<AuthUser>> refreshToken(String refreshToken) async {
     await _delay();
 

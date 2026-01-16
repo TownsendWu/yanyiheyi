@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 import '../core/theme/app_colors.dart';
 import '../data/models/user_profile.dart';
 import '../providers/user_provider.dart';
+import '../providers/auth_provider.dart';
 import '../pages/user_profile_edit_page.dart';
 import '../pages/help_and_feedback_page.dart';
 import '../pages/about_page.dart';
 import '../pages/settings_page.dart';
+import 'auth/login_prompt_widget.dart';
 
 /// 侧边菜单的内容组件
 ///
@@ -125,6 +127,16 @@ class MenuContent extends StatelessWidget {
 class _UserInfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+
+    // 未登录时显示登录提示
+    if (!authProvider.isAuthenticated) {
+      return LoginPromptWidget(
+        onLoginTap: () => _showLoginBottomSheet(context),
+      );
+    }
+
+    // 已登录时显示用户信息
     final userProvider = context.watch<UserProvider>();
     final userProfile = userProvider.userProfile;
 
@@ -155,14 +167,6 @@ class _UserInfoSection extends StatelessWidget {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(5, 40, 0, 20),
-        // decoration: BoxDecoration(
-        //   border: Border(
-        //     bottom: BorderSide(
-        //       color: subtitleColor.withValues(alpha: 0.1),
-        //       width: 1,
-        //     ),
-        //   ),
-        // ),
         child: Row(
           children: [
             // 头像
@@ -212,6 +216,16 @@ class _UserInfoSection extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// 显示登录底部弹窗
+  void _showLoginBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _LoginBottomSheet(),
     );
   }
 }
@@ -330,6 +344,304 @@ class _MenuItem extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 登录底部弹窗
+class _LoginBottomSheet extends StatefulWidget {
+  @override
+  State<_LoginBottomSheet> createState() => _LoginBottomSheetState();
+}
+
+class _LoginBottomSheetState extends State<_LoginBottomSheet> {
+  final _phoneController = TextEditingController();
+  final _codeController = TextEditingController();
+  bool _isSendingCode = false;
+  bool _isLoggingIn = false;
+  int? _countdown;
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor =
+        isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final textColor =
+        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+    final subtitleColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 标题
+              Row(
+                children: [
+                  Text(
+                    '登录',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(Icons.close, color: subtitleColor),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '登录后可同步数据到云端',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: subtitleColor,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // 手机号输入
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                maxLength: 11,
+                decoration: InputDecoration(
+                  labelText: '手机号',
+                  hintText: '请输入手机号',
+                  prefixIcon: const Icon(Icons.phone),
+                  counterText: '',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 验证码输入
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _codeController,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      decoration: InputDecoration(
+                        labelText: '验证码',
+                        hintText: '请输入验证码',
+                        prefixIcon: const Icon(Icons.verified),
+                        counterText: '',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 120,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _countdown == null && !_isSendingCode
+                          ? _sendVerificationCode
+                          : null,
+                      child: _isSendingCode
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              _countdown != null
+                                  ? '${_countdown}秒'
+                                  : '获取验证码',
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // 登录按钮
+              SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isLoggingIn ? null : _handleLogin,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        isDark ? AppColors.primaryDark : AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _isLoggingIn
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text(
+                          '登录',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 游客模式
+              TextButton(
+                onPressed: () => _handleGuestMode(context),
+                child: Text(
+                  '暂不登录，继续使用',
+                  style: TextStyle(
+                    color: subtitleColor,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 发送验证码
+  void _sendVerificationCode() async {
+    final phone = _phoneController.text.trim();
+    if (phone.length != 11) {
+      _showError('请输入正确的手机号');
+      return;
+    }
+
+    setState(() => _isSendingCode = true);
+
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final success = await authProvider.sendVerificationCode(phone);
+
+      if (mounted) {
+        setState(() => _isSendingCode = false);
+        if (success) {
+          _startCountdown();
+          _showSuccess('验证码已发送');
+        } else {
+          _showError('发送失败,请重试');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSendingCode = false);
+        _showError('发送失败,请重试');
+      }
+    }
+  }
+
+  /// 开始倒计时
+  void _startCountdown() {
+    setState(() => _countdown = 60);
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return false;
+      setState(() => _countdown = _countdown! - 1);
+      return _countdown! > 0;
+    });
+  }
+
+  /// 处理登录
+  void _handleLogin() async {
+    final phone = _phoneController.text.trim();
+    final code = _codeController.text.trim();
+
+    if (phone.length != 11) {
+      _showError('请输入正确的手机号');
+      return;
+    }
+
+    if (code.isEmpty) {
+      _showError('请输入验证码');
+      return;
+    }
+
+    setState(() => _isLoggingIn = true);
+
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final success = await authProvider.loginWithPhone(phone, code);
+
+      if (mounted) {
+        if (success) {
+          Navigator.pop(context);
+          _showSuccess('登录成功');
+        } else {
+          setState(() => _isLoggingIn = false);
+          final error = authProvider.error;
+          _showError(error?.message ?? '登录失败,请重试');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoggingIn = false);
+        _showError('登录失败,请重试');
+      }
+    }
+  }
+
+  /// 处理游客模式
+  void _handleGuestMode(BuildContext context) async {
+    Navigator.pop(context);
+    // 游客模式不需要额外操作，AuthProvider 已经初始化为游客
+  }
+
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
       ),
     );
   }
